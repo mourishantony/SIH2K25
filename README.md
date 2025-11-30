@@ -21,7 +21,8 @@ This workspace contains a minimal end-to-end workflow to register new identities
 1. Copy `.env.example` to `.env`.
 2. Edit the values to set your preferred defaults:
    - `FACE_REG_*` entries drive the registration script (sample counts, confidence, capture delay, GPU flag, camera index).
-   - `FACE_RECOG_*` entries control the streaming script (detection confidence, similarity threshold, detector size, camera index, GPU flag).
+   - `FACE_RECOG_*` entries control the streaming script (detection confidence, similarity threshold, detector size, camera index, GPU flag, optional video path/prompt).
+   - `FACE_RECOG_VIDEO_PATH` lets you default the recognition input to a video file instead of the webcam when set to an absolute or workspace-relative path.
 3. CLI flags still override the environment, so you can temporarily tweak a value without editing `.env`.
 
 Example tweaks:
@@ -37,10 +38,10 @@ FACE_REG_CAPTURE_DELAY=0.35
 Capture both unmasked and masked samples so the encoder learns to recognize the person in either state.
 
 ```powershell
-C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py "Person Name" --use-gpu
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py "Person Name"
 ```
 
-Drop `--use-gpu` if you prefer to stay on the CPU runtime.
+Set `FACE_REG_USE_GPU=true` in `.env` if you want registration to default to CUDA without passing flags every run.
 
 - Phase 1 runs with the mask **off**. Keep your face centered; samples are taken automatically every ~0.45s.
 - After Phase 1, the script pauses. Put on your mask and press `Enter` in the terminal to resume Phase 2.
@@ -51,12 +52,16 @@ You can tweak options such as `--unmasked-samples`, `--masked-samples`, `--camer
 ## Real-Time Recognition
 
 ```powershell
-C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/recognize_face.py watch --use-gpu
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/recognize_face.py
 ```
 
-Remove `--use-gpu` to keep the workload on the CPU.
+`FACE_RECOG_USE_GPU=true` keeps GPU acceleration enabled with no CLI flags.
 
 To change the default similarity guard, set `FACE_RECOG_THRESHOLD` inside `.env` (CLI `--threshold` still wins when supplied).
+
+To analyze an MP4/AVI instead of the live camera, pass `--video-path path/to/file.mp4` (or set `FACE_RECOG_VIDEO_PATH` in `.env`). When the flag/variable is present, `--camera-index` is ignored and frames are pulled from the file until it ends.
+
+When `FACE_RECOG_VIDEO_PROMPT=true` (or `--video-prompt`), the app pops up a file chooser so you can select the clip interactively; close/cancel the dialog to keep streaming the webcam.
 
 - The stream window overlays bounding boxes and the predicted identity with similarity score.
 - Press `q` to exit. Use `--threshold` to make recognition stricter or more permissive.

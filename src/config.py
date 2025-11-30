@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -46,6 +47,16 @@ def _get_bool(name: str, default: bool) -> bool:
     return default
 
 
+def _get_str(name: str, default: Optional[str]) -> Optional[str]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    value = raw.strip()
+    if not value:
+        return default
+    return value
+
+
 @dataclass(frozen=True)
 class RegisterSettings:
     unmasked_samples: int
@@ -63,6 +74,8 @@ class RecognitionSettings:
     threshold: float
     det_size: int
     use_gpu: bool
+    video_path: Optional[str]
+    video_prompt: bool
 
 
 register_settings = RegisterSettings(
@@ -80,6 +93,8 @@ recognition_settings = RecognitionSettings(
     threshold=_get_float("FACE_RECOG_THRESHOLD", 0.32),
     det_size=_get_int("FACE_RECOG_DET_SIZE", 640),
     use_gpu=_get_bool("FACE_RECOG_USE_GPU", False),
+    video_path=_get_str("FACE_RECOG_VIDEO_PATH", None),
+    video_prompt=_get_bool("FACE_RECOG_VIDEO_PROMPT", False),
 )
 
 
