@@ -20,7 +20,7 @@ This workspace contains a minimal end-to-end workflow to register new identities
 
 1. Copy `.env.example` to `.env`.
 2. Edit the values to set your preferred defaults:
-   - `FACE_REG_*` entries drive the registration script (sample counts, confidence, capture delay, GPU flag, camera index).
+   - `FACE_REG_*` entries drive the registration script (sample counts, confidence, capture delay, GPU flag, camera index, optional video prompt).
    - `FACE_RECOG_*` entries control the streaming script (detection confidence, similarity threshold, detector size, camera index, GPU flag, optional video path/prompt).
    - `FACE_RECOG_VIDEO_PATH` lets you default the recognition input to a video file instead of the webcam when set to an absolute or workspace-relative path.
 3. CLI flags still override the environment, so you can temporarily tweak a value without editing `.env`.
@@ -42,6 +42,8 @@ C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py "Pe
 ```
 
 Set `FACE_REG_USE_GPU=true` in `.env` if you want registration to default to CUDA without passing flags every run.
+
+If you prefer registering from pre-recorded clips instead of the webcam, set `FACE_REG_VIDEO_PROMPT=true`. The script will show a file chooser for each phase (mask off/on). Close the dialog or press cancel to fall back to the live camera for that phase.
 
 - Phase 1 runs with the mask **off**. Keep your face centered; samples are taken automatically every ~0.45s.
 - After Phase 1, the script pauses. Put on your mask and press `Enter` in the terminal to resume Phase 2.

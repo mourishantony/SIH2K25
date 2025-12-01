@@ -65,6 +65,7 @@ class RegisterSettings:
     capture_delay: float
     camera_index: int
     use_gpu: bool
+    video_prompt: bool
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ register_settings = RegisterSettings(
     capture_delay=_get_float("FACE_REG_CAPTURE_DELAY", 0.45),
     camera_index=_get_int("FACE_REG_CAMERA_INDEX", 0),
     use_gpu=_get_bool("FACE_REG_USE_GPU", False),
+    video_prompt=_get_bool("FACE_REG_VIDEO_PROMPT", False),
 )
 
 recognition_settings = RecognitionSettings(
