@@ -21,7 +21,7 @@ This workspace contains a minimal end-to-end workflow to register new identities
 1. Copy `.env.example` to `.env`.
 2. Edit the values to set your preferred defaults:
    - `FACE_REG_*` entries drive the registration script (sample counts, confidence, capture delay, GPU flag, camera index, optional video prompt).
-   - `FACE_RECOG_*` entries control the streaming script (detection confidence, similarity threshold, detector size, camera index, GPU flag, optional video path/prompt).
+   - `FACE_RECOG_*` entries control the streaming script (detection confidence, similarity threshold, detector size, camera index, GPU flag, optional video path/prompt, Re-ID options).
    - `FACE_RECOG_VIDEO_PATH` lets you default the recognition input to a video file instead of the webcam when set to an absolute or workspace-relative path.
 3. CLI flags still override the environment, so you can temporarily tweak a value without editing `.env`.
 
@@ -64,6 +64,14 @@ To change the default similarity guard, set `FACE_RECOG_THRESHOLD` inside `.env`
 To analyze an MP4/AVI instead of the live camera, pass `--video-path path/to/file.mp4` (or set `FACE_RECOG_VIDEO_PATH` in `.env`). When the flag/variable is present, `--camera-index` is ignored and frames are pulled from the file until it ends.
 
 When `FACE_RECOG_VIDEO_PROMPT=true` (or `--video-prompt`), the app pops up a file chooser so you can select the clip interactively; close/cancel the dialog to keep streaming the webcam.
+
+### Person Re-ID + Tracking (DeepSORT + OSNet)
+
+1. Install PyTorch with CUDA suited to your GPU if you have not already. The provided `requirements.txt` references the generic CPU wheels; for GPU builds follow the [official PyTorch install selector](https://pytorch.org/get-started/locally/) and then re-run `pip install -r requirements.txt` to pick up the remaining packages.
+2. Download the YOLOv8 weights you prefer (default `yolov8n.pt` downloads automatically from Ultralytics on first use). If you have a local custom model, set `FACE_REID_DETECTOR=/path/to/model.pt`.
+3. Flip `FACE_RECOG_ENABLE_REID=true` in `.env`. Optional knobs: `FACE_REID_DET_CONF` to tighten or loosen the person detector confidence, `FACE_REID_DETECTOR` to point at a different YOLO checkpoint, and `FACE_REID_EMBEDDER_GPU` to let the OSNet embedder run on the GPU (defaults to CPU if false).
+
+Workflow: the camera first recognizes faces as before. When a face is confidently labeled, its bounding box center is matched to the closest tracked person (using DeepSORT with OSNet embeddings). From that point onward, the tracker keeps a bounding box around the entire body, even if the face turns away or becomes occluded. Once a track leaves the scene it is removed automatically, and the next positive face match reassigns the identity.
 
 - The stream window overlays bounding boxes and the predicted identity with similarity score.
 - Press `q` to exit. Use `--threshold` to make recognition stricter or more permissive.

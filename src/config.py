@@ -77,6 +77,10 @@ class RecognitionSettings:
     use_gpu: bool
     video_path: Optional[str]
     video_prompt: bool
+    enable_reid: bool
+    reid_detector_conf: float
+    reid_model_path: Optional[str]
+    reid_embedder_gpu: bool
 
 
 register_settings = RegisterSettings(
@@ -97,6 +101,10 @@ recognition_settings = RecognitionSettings(
     use_gpu=_get_bool("FACE_RECOG_USE_GPU", False),
     video_path=_get_str("FACE_RECOG_VIDEO_PATH", None),
     video_prompt=_get_bool("FACE_RECOG_VIDEO_PROMPT", False),
+    enable_reid=_get_bool("FACE_RECOG_ENABLE_REID", False),
+    reid_detector_conf=_get_float("FACE_REID_DET_CONF", 0.35),
+    reid_model_path=_get_str("FACE_REID_DETECTOR", "yolov8n.pt"),
+    reid_embedder_gpu=_get_bool("FACE_REID_EMBEDDER_GPU", False),
 )
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -12,6 +12,18 @@ from config import register_settings
 from face_db import upsert_embeddings
 from ui_utils import pick_video_file
 from vision import get_analyzer
+
+WINDOW_NAME = "Registration"
+_window_size: Tuple[int, int] = (0, 0)
+
+
+def _sync_window_to_frame(frame: np.ndarray) -> None:
+    """Resize the preview window so it matches the incoming frame size."""
+    global _window_size
+    height, width = frame.shape[:2]
+    if (width, height) != _window_size:
+        cv2.resizeWindow(WINDOW_NAME, width, height)
+        _window_size = (width, height)
 
 app = typer.Typer(add_completion=False)
 
@@ -33,7 +45,6 @@ def _capture_phase(
     phase_label: str,
     min_confidence: float,
     capture_delay: float,
-    source_label: str,
     is_video_source: bool,
 ) -> List[np.ndarray]:
     samples: List[np.ndarray] = []
@@ -43,9 +54,11 @@ def _capture_phase(
         if not ret:
             if is_video_source:
                 raise typer.BadParameter(
-                    f"{source_label} ended before capturing enough samples. Provide a longer clip."
+                    "Selected video ended before enough samples were captured. Provide a longer clip."
                 )
             raise RuntimeError("Unable to read frame from the webcam.")
+
+        _sync_window_to_frame(frame)
 
         faces = analyzer.get(frame)
         face = _select_primary_face(faces, min_confidence)
@@ -70,7 +83,7 @@ def _capture_phase(
                 2,
             )
 
-        cv2.imshow("Registration", frame)
+        cv2.imshow(WINDOW_NAME, frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             raise typer.Abort()
@@ -95,7 +108,11 @@ def register(
 ):
     """Register a new person by capturing embeddings with and without a mask."""
 
+    global _window_size
+
     rprint("[bold green]Face registration starting...[/]")
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    _window_size = (0, 0)
 
     shared_cam: Optional[cv2.VideoCapture] = None
     if not video_prompt:
@@ -121,17 +138,17 @@ def register(
                 if not cap.isOpened():
                     raise typer.BadParameter(f"Cannot open video file: {picked}")
                 rprint(f"[cyan]{phase_name}[/] using video: {picked}")
-                return cap, f"video {picked}", True, True
+                return cap, True, True
             rprint("[yellow]No video selected; falling back to webcam for this phase.[/]")
         cam = _ensure_webcam()
-        return cam, f"camera {camera_index}", False, False
+        return cam, False, False
 
     try:
         if video_prompt:
             rprint("[yellow]Phase 1:[/] choose a clip with mask OFF when the dialog appears.")
         else:
             rprint("[yellow]Phase 1:[/] keep your mask OFF and face the camera. Press q to abort.")
-        cap_phase, label, is_video_source, should_release = _select_capture("Phase 1 (no mask)")
+        cap_phase, is_video_source, should_release = _select_capture("Phase 1 (no mask)")
         try:
             unmasked = _capture_phase(
                 cap_phase,
@@ -140,7 +157,6 @@ def register(
                 "No mask",
                 min_confidence,
                 capture_delay,
-                label,
                 is_video_source,
             )
         finally:
@@ -155,7 +171,7 @@ def register(
                 typer.secho("Put on your mask, then press ENTER to continue...", fg=typer.colors.YELLOW)
                 typer.prompt("Ready? hit ENTER when the mask is on", default="", show_default=False)
                 rprint("[yellow]Phase 2:[/] keep your mask ON and face the camera.")
-            cap_phase, label, is_video_source, should_release = _select_capture("Phase 2 (mask on)")
+            cap_phase, is_video_source, should_release = _select_capture("Phase 2 (mask on)")
             try:
                 masked = _capture_phase(
                     cap_phase,
@@ -164,7 +180,6 @@ def register(
                     "Mask on",
                     min_confidence,
                     capture_delay,
-                    label,
                     is_video_source,
                 )
             finally:
