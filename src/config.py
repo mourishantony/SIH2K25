@@ -59,13 +59,10 @@ def _get_str(name: str, default: Optional[str]) -> Optional[str]:
 
 @dataclass(frozen=True)
 class RegisterSettings:
-    unmasked_samples: int
-    masked_samples: int
+    total_samples: int
     min_confidence: float
-    capture_delay: float
     camera_index: int
     use_gpu: bool
-    video_prompt: bool
 
 
 @dataclass(frozen=True)
@@ -118,13 +115,10 @@ class CollisionSettings:
     alert_log_dir: Path
 
 register_settings = RegisterSettings(
-    unmasked_samples=_get_int("FACE_REG_UNMASKED_SAMPLES", 20),
-    masked_samples=_get_int("FACE_REG_MASKED_SAMPLES", 12),
+    total_samples=_get_int("FACE_REG_TOTAL_SAMPLES", 50),
     min_confidence=_get_float("FACE_REG_MIN_CONFIDENCE", 0.35),
-    capture_delay=_get_float("FACE_REG_CAPTURE_DELAY", 0.45),
     camera_index=_get_int("FACE_REG_CAMERA_INDEX", 0),
     use_gpu=_get_bool("FACE_REG_USE_GPU", False),
-    video_prompt=_get_bool("FACE_REG_VIDEO_PROMPT", False),
 )
 
 recognition_settings = RecognitionSettings(
