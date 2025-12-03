@@ -66,7 +66,45 @@ C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py unr
 
 This deletes all embeddings for that person from `data/face_database.json`.
 
-### 3. Monitor Contacts (Dual-Camera Contact Tracing)
+### 3. Mark/Unmark MDR Patients
+
+Designate patients as MDR (Multi-Drug Resistant) to trigger email alerts when they contact others:
+
+```powershell
+# Mark a patient as MDR
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/mark_mdr.py mark "Patient Name"
+
+# Remove MDR status
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/mark_mdr.py unmark "Patient Name"
+
+# List all MDR patients
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/mark_mdr.py list
+
+# Check if a patient is MDR
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/mark_mdr.py check "Patient Name"
+```
+
+**MDR Email Alerts:**
+- When an MDR patient contacts another person, the system monitors the duration
+- If contact reaches 5 minutes (configurable), an email alert is sent immediately with snapshots
+- If contact ends before 5 minutes, no alert is sent
+- If contact exceeds 5 minutes and then ends, a completion alert is sent (if not already sent)
+- Alerts include: MDR patient name, contacted person, timestamps, duration, risk %, camera snapshots
+
+**Email Configuration:**
+Configure SMTP settings in `.env`:
+```env
+MDR_ALERT_THRESHOLD_SECONDS=300  # 5 minutes
+MDR_SMTP_SERVER=smtp.gmail.com
+MDR_SMTP_PORT=587
+MDR_SMTP_USERNAME=your-email@gmail.com
+MDR_SMTP_PASSWORD=your-app-password
+MDR_ADMIN_EMAIL=admin@hospital.com
+```
+
+For Gmail, you need to create an [App Password](https://support.google.com/accounts/answer/185833).
+
+### 4. Monitor Contacts (Dual-Camera Contact Tracing)
 
 Run the dual-camera monitoring system with integrated face recognition, person tracking, and collision detection:
 
@@ -133,6 +171,7 @@ The preview window shows both camera feeds side-by-side with bounding boxes, ide
 ## Data Storage
 
 - **Face embeddings:** `data/face_database.json` (delete to reset registry)
+- **MDR patient list:** `data/mdr_patients.json` (delete to clear MDR flags)
 - **Contact logs:** `Contact_Details/<PersonName>/contacts.json` (delete individual folders to clear history)
 - **Alert logs:** `data/alerts/alerts_YYYY-MM-DD.json` (one file per day)
 
@@ -148,15 +187,19 @@ The preview window shows both camera feeds side-by-side with bounding boxes, ide
 ## System Flow Summary
 
 1. **Register patients** using `register_face.py register "Name"` with 50 samples (mask optional)
-2. **Monitor contacts** using `monitor_contacts.py`:
+2. **Mark MDR patients** using `mark_mdr.py mark "Name"` (optional but recommended for MDR tracking)
+3. **Monitor contacts** using `monitor_contacts.py`:
    - InsightFace recognizes faces (even with masks)
    - YOLO + DeepSORT tracks full body movement
    - Collision detector measures proximity using IoU + distance
    - Risk accumulates over time with mask modifiers
    - Alerts trigger when thresholds exceeded
    - Contact logs record timestamps + risk percentages
-3. **Review data** in `Contact_Details/` and `data/alerts/`
-4. **Unregister patients** when needed using `register_face.py unregister "Name"`
+   - **MDR email alerts** sent when MDR patient contacts others for ≥5 minutes
+4. **Review data** in `Contact_Details/` and `data/alerts/`
+5. **Check inbox** for MDR alert emails (if configured)
+6. **Unregister patients** when needed using `register_face.py unregister "Name"`
+7. **Remove MDR status** when needed using `mark_mdr.py unmark "Name"`
 
 ## Technology Stack
 

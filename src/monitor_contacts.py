@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -21,8 +22,10 @@ from collision_detector import (
 )
 from config import collision_settings, contact_settings, dual_view_settings, recognition_settings
 from contact_store import ContactLedger
+from email_alerter import EmailAlerter, MDRContactAlert
 from face_db import flatten_registry, load_facebank
 from mask_classifier import MaskClassifier
+from mdr_tracker import is_mdr_patient, load_mdr_patients
 from reid_tracker import PersonTracker, TrackInfo
 from ui_utils import pick_video_file
 from vision import get_analyzer
@@ -66,6 +69,12 @@ class PairState:
     active: bool = False
     start_iso: Optional[str] = None
     end_iso: Optional[str] = None
+    # MDR tracking fields
+    involves_mdr: bool = False
+    mdr_patient: Optional[str] = None
+    other_person: Optional[str] = None
+    mdr_alert_sent: bool = False
+    start_timestamp: float = 0.0
 
 
 @dataclass
@@ -357,6 +366,69 @@ def _pairs_from_collisions(collisions: Sequence[Collision], min_risk: float) -> 
     return pairs
 
 
+def _check_mdr_alert(
+    pair: Tuple[str, str],
+    state: PairState,
+    front_frame: np.ndarray,
+    side_frame: np.ndarray,
+    email_alerter: EmailAlerter,
+    mdr_alert_threshold_seconds: float,
+) -> None:
+    """Check if MDR email alert should be sent for this contact."""
+    if not state.involves_mdr or state.mdr_alert_sent:
+        return
+    
+    # Calculate contact duration
+    current_time = time.time()
+    duration_seconds = current_time - state.start_timestamp
+    
+    # Send alert if duration exceeds threshold (5 minutes = 300 seconds by default)
+    if duration_seconds >= mdr_alert_threshold_seconds:
+        alert = MDRContactAlert(
+            mdr_patient=state.mdr_patient or "",
+            contacted_person=state.other_person or "",
+            contact_start=state.start_iso or datetime.now(timezone.utc).isoformat(),
+            contact_end=None,  # Still ongoing
+            duration_seconds=duration_seconds,
+            risk_percent=min(state.cumulative * 100, 100),
+            front_snapshot=front_frame.copy(),
+            side_snapshot=side_frame.copy(),
+        )
+        if email_alerter.send_mdr_alert(alert):
+            state.mdr_alert_sent = True
+            rprint(f"[bold yellow]📧 MDR alert sent:[/] {state.mdr_patient} ↔ {state.other_person}")
+
+
+def _send_mdr_completion_alert(
+    pair: Tuple[str, str],
+    state: PairState,
+    email_alerter: EmailAlerter,
+    mdr_alert_threshold_seconds: float,
+) -> None:
+    """Send MDR alert when contact ends, if not already sent and duration >= threshold."""
+    if not state.involves_mdr or state.mdr_alert_sent:
+        return
+    
+    current_time = time.time()
+    duration_seconds = current_time - state.start_timestamp
+    
+    # Only send if contact lasted long enough
+    if duration_seconds >= mdr_alert_threshold_seconds:
+        alert = MDRContactAlert(
+            mdr_patient=state.mdr_patient or "",
+            contacted_person=state.other_person or "",
+            contact_start=state.start_iso or datetime.now(timezone.utc).isoformat(),
+            contact_end=state.end_iso or datetime.now(timezone.utc).isoformat(),
+            duration_seconds=duration_seconds,
+            risk_percent=min(state.cumulative * 100, 100),
+            front_snapshot=None,  # No frames available at contact end
+            side_snapshot=None,
+        )
+        if email_alerter.send_mdr_alert(alert):
+            state.mdr_alert_sent = True
+            rprint(f"[bold yellow]📧 MDR completion alert sent:[/] {state.mdr_patient} ↔ {state.other_person}")
+
+
 def monitor_contacts(
     use_gpu: bool = typer.Option(recognition_settings.use_gpu, help="Run InsightFace on GPU when available."),
     min_confidence: float = typer.Option(recognition_settings.min_confidence, help="Minimum detector confidence to accept a face."),
@@ -370,6 +442,16 @@ def monitor_contacts(
     if not registry:
         raise typer.Exit("No embeddings found. Run register_face.py first.")
     names, embeddings = flatten_registry(registry)
+    
+    # Load MDR patients and initialize email alerter
+    mdr_patients = load_mdr_patients()
+    email_alerter = EmailAlerter()
+    mdr_alert_threshold_seconds = float(os.getenv("MDR_ALERT_THRESHOLD_SECONDS", "300"))  # 5 minutes default
+    
+    if mdr_patients:
+        rprint(f"[yellow]⚠ Monitoring {len(mdr_patients)} MDR patient(s):[/] {', '.join(sorted(mdr_patients))}")
+    if email_alerter.enabled:
+        rprint(f"[green]✓ MDR email alerts enabled:[/] {email_alerter.admin_email}")
     embeddings = embeddings.astype(np.float32)
     analyzer = get_analyzer((det_size, det_size), use_gpu=use_gpu)
     mask_classifier = MaskClassifier()
@@ -503,8 +585,28 @@ def monitor_contacts(
                     state.active = True
                     state.cumulative = 0.0
                     state.start_iso = timestamp_iso
+                    state.start_timestamp = time.time()
+                    # Check if this pair involves an MDR patient
+                    if pair[0] in mdr_patients:
+                        state.involves_mdr = True
+                        state.mdr_patient = pair[0]
+                        state.other_person = pair[1]
+                    elif pair[1] in mdr_patients:
+                        state.involves_mdr = True
+                        state.mdr_patient = pair[1]
+                        state.other_person = pair[0]
                 state.cumulative += delta_risk
                 state.end_iso = timestamp_iso
+                
+                # Check if MDR alert should be sent (ongoing contact >= 5 minutes)
+                _check_mdr_alert(
+                    pair,
+                    state,
+                    front_result.frame,
+                    side_result.frame,
+                    email_alerter,
+                    mdr_alert_threshold_seconds,
+                )
 
                 _process_collision_alert(
                     pair,
@@ -518,6 +620,13 @@ def monitor_contacts(
             for pair in list(inactive_pairs):
                 state = pair_states[pair]
                 if state.active and state.start_iso and state.end_iso and state.cumulative > 0:
+                    # Send MDR completion alert if needed (contact ended)
+                    _send_mdr_completion_alert(
+                        pair,
+                        state,
+                        email_alerter,
+                        mdr_alert_threshold_seconds,
+                    )
                     for a, b in (pair, pair[::-1]):
                         ledger.log_incident(
                             a,
@@ -536,7 +645,7 @@ def monitor_contacts(
                 break
             frame_number += 1
     finally:
-        _flush_active_pairs(pair_states, ledger)
+        _flush_active_pairs(pair_states, ledger, email_alerter, mdr_alert_threshold_seconds)
         front_capture.release()
         side_capture.release()
         cv2.destroyAllWindows()
@@ -587,9 +696,22 @@ def _process_collision_alert(
         )
 
 
-def _flush_active_pairs(pair_states: Dict[Tuple[str, str], PairState], ledger: ContactLedger) -> None:
+def _flush_active_pairs(
+    pair_states: Dict[Tuple[str, str], PairState],
+    ledger: ContactLedger,
+    email_alerter: Optional[EmailAlerter] = None,
+    mdr_alert_threshold_seconds: float = 300.0,
+) -> None:
     for pair, state in list(pair_states.items()):
         if state.active and state.start_iso and state.end_iso and state.cumulative > 0:
+            # Send MDR completion alert if applicable
+            if email_alerter:
+                _send_mdr_completion_alert(
+                    pair,
+                    state,
+                    email_alerter,
+                    mdr_alert_threshold_seconds,
+                )
             for a, b in (pair, pair[::-1]):
                 ledger.log_incident(
                     a,
