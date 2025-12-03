@@ -13,3 +13,5 @@ filterpy>=1.4
 torchreid>=0.2.5
 gdown>=5.2
 tensorboard>=2.20
+scikit-learn>=1.4
+kagglehub>=0.2.5

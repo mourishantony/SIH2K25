@@ -103,6 +103,7 @@ def run_recognition(
     analyzer = get_analyzer((det_size, det_size), use_gpu=use_gpu)
     person_tracker: Optional[PersonTracker] = None
     track_identities: Dict[int, str] = {}
+    identity_claims: Dict[str, int] = {}
     if enable_reid:
         person_tracker = PersonTracker(
             model_path=str(reid_detector),
@@ -162,11 +163,16 @@ def run_recognition(
                 if name != "Unknown" and person_tracker is not None:
                     matched = _match_face_to_track((x1, y1, x2, y2), active_tracks)
                     if matched is not None:
+                        previous_track = identity_claims.get(name)
+                        if previous_track is not None and previous_track != matched.track_id:
+                            track_identities.pop(previous_track, None)
                         track_identities[matched.track_id] = name
+                        identity_claims[name] = matched.track_id
 
             if person_tracker is not None:
                 active_ids = {track.track_id for track in active_tracks}
                 track_identities = {tid: label for tid, label in track_identities.items() if tid in active_ids}
+                identity_claims = {label: tid for label, tid in identity_claims.items() if tid in active_ids}
 
                 for track in active_tracks:
                     x1, y1, x2, y2 = track.bbox

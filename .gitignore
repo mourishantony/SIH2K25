@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .env
 /data/face_database.json
+mask_datas/
+Contact_Details/

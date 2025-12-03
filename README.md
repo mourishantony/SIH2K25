@@ -76,9 +76,40 @@ Workflow: the camera first recognizes faces as before. When a face is confidentl
 - The stream window overlays bounding boxes and the predicted identity with similarity score.
 - Press `q` to exit. Use `--threshold` to make recognition stricter or more permissive.
 
+## Dual-Camera Contact Tracing + Risk Logging
+
+`src/monitor_contacts.py` pairs the laptop camera (front view) with an external webcam (side view) or any two video files to confirm close contacts only when *both* perspectives show overlapping person boxes. Each confirmed pair updates a running risk score using
+
+```
+R_new = R_old + (BaseRate × MaskModifier × Δt) + EventPenalty
+```
+
+- `BaseRate`, `EventPenalty`, `CONTACT_OVERLAP_THRESHOLD`, and the per-view sources are controlled through `.env` (`FRONT_*`, `SIDE_*`, and `CONTACT_*` entries). Adjust them before launching the monitor.
+- Run the monitor with:
+   ```powershell
+   C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/monitor_contacts.py
+   ```
+   The left half of the preview shows the front feed, the right half shows the side feed. Press `q` to stop.
+- Every registered person gets a folder under `Contact_Details/<Name>/contacts.json` that stores one entry per contact incident: the other person's name, ISO timestamps for when the encounter started/ended, and the cumulative risk accrued during that window. Each incident is mirrored so both parties have matching records, along with a running `total_cumulative_risk` per contact.
+- Bounding boxes now come from YOLO + DeepSORT with tuned confidence/IoU and post-NMS tightening (`FACE_REID_DET_CONF`, `FACE_REID_NMS_IOU`, `FACE_REID_BOX_SHRINK`), which keeps them snug around the tracked person and prevents adjacent bodies from overlapping unless they're truly colliding in both views.
+- Mask usage lowers the `MaskModifier`. The first time you run the monitor it trains a lightweight classifier from the Kaggle *face-mask-detection* dataset (downloaded into `mask_datas/` via `python data_getting.py`). If the dataset is missing it falls back to a neutral modifier.
+- Playback timing follows the slower of the two input streams, so recorded videos and live feeds render at their natural rate instead of a throttled preview. The `CONTACT_SYNC_WINDOW` env var (default 0.5 s) lets you tolerate small timing differences between the front and side cameras; a pair only becomes “confirmed” when both views report an overlap within that window.
+
+Tip: set `FRONT_VIDEO_PROMPT=true` or `SIDE_VIDEO_PROMPT=true` when you want to pick video files through a dialog at runtime. Leave the video paths blank to keep live camera input.
+
+### Collision-aware alerts
+
+- Every named box is wrapped in a `BoundingBox` (see `src/collision_detector.py`) so IoU + center-to-center distance can be measured per camera. The module blends both metrics into a normalized risk score and assigns qualitative buckets (`SAFE` → `CRITICAL`).
+- `CollisionTracker` keeps duration/frame counts per pair. When a contact is confirmed by both views, the same pair also runs through the collision tracker so alerts use time-on-target instead of a single-frame spike.
+- `AlertSystem` ( `src/alert_system.py`) enforces minimum duration/risk gates, prints a Rich trace, optionally beeps, and logs JSON snapshots under `data/alerts/alerts_YYYY-MM-DD.json`. Set `COLLISION_ENABLE_AUDIO=true` if you want the Windows beep.
+- Tweak `COLLISION_IOU_THRESHOLD`, `COLLISION_DISTANCE_THRESHOLD`, and `COLLISION_MIN_RISK_FOR_ALERT` in `.env` to balance sensitivity. `COLLISION_ALERT_DURATION` (seconds) and `COLLISION_ALERT_COOLDOWN` (seconds) control how long a pair must stay together before firing and how long to wait before re-alerting the same pair.
+- Alerts can require two-camera agreement (default) via `COLLISION_REQUIRE_BOTH_CAMERAS`. Flip it to `false` if you want a single camera to be enough even while the contact tracer still expects both.
+
 ## Data Storage
 
 Embeddings are written to `data/face_database.json`. You can safely delete this file to reset the registry.
+
+Contact logs live under `Contact_Details/`. Delete an individual's folder if you need to clear their risk history.
 
 ## Troubleshooting
 

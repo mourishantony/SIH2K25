@@ -50,9 +50,13 @@ class PersonTracker:
         n_init: int = 3,
         embedder_gpu: bool = False,
         embedder_model: str = "osnet_x0_25",
+        nms_iou: float = 0.35,
+        box_shrink: float = 0.1,
     ) -> None:
         self.detector = YOLO(model_path)
         self.det_conf = detection_confidence
+        self.nms_iou = max(0.05, min(0.9, nms_iou))
+        self.box_shrink = max(0.0, min(0.4, box_shrink))
         _ensure_torchreid_namespace()
         self.tracker = DeepSort(
             max_age=max_age,
@@ -65,7 +69,13 @@ class PersonTracker:
         )
 
     def _detect(self, frame: np.ndarray) -> List[Tuple[BBox, float, str]]:
-        results = self.detector.predict(frame, conf=self.det_conf, classes=[0], verbose=False)
+        results = self.detector.predict(
+            frame,
+            conf=self.det_conf,
+            iou=self.nms_iou,
+            classes=[0],
+            verbose=False,
+        )
         detections: List[Tuple[BBox, float, str]] = []
         for result in results:
             if not hasattr(result, "boxes"):
@@ -75,8 +85,30 @@ class PersonTracker:
                 if conf < self.det_conf:
                     continue
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                detections.append(((x1, y1, x2, y2), conf, "person"))
+                detections.append((self._tighten_bbox((x1, y1, x2, y2)), conf, "person"))
         return detections
+
+    def _tighten_bbox(self, bbox: BBox) -> BBox:
+        x1, y1, x2, y2 = bbox
+        width = x2 - x1
+        height = y2 - y1
+        if width <= 0 or height <= 0 or self.box_shrink <= 0:
+            return bbox
+        dx = int(width * self.box_shrink / 2)
+        dy = int(height * self.box_shrink / 2)
+        nx1 = x1 + dx
+        ny1 = y1 + dy
+        nx2 = x2 - dx
+        ny2 = y2 - dy
+        if nx2 - nx1 < 4:
+            mid_x = (x1 + x2) // 2
+            nx1 = mid_x - 2
+            nx2 = mid_x + 2
+        if ny2 - ny1 < 4:
+            mid_y = (y1 + y2) // 2
+            ny1 = mid_y - 2
+            ny2 = mid_y + 2
+        return (nx1, ny1, nx2, ny2)
 
     def update(self, frame: np.ndarray) -> Sequence[TrackInfo]:
         detections = self._detect(frame)
@@ -87,7 +119,8 @@ class PersonTracker:
                 continue
             x1, y1, x2, y2 = map(int, track.to_ltrb())
             det_conf = float(getattr(track, "det_confidence", 0.0))
-            output.append(TrackInfo(track_id=track.track_id, bbox=(x1, y1, x2, y2), confidence=det_conf))
+            tightened = self._tighten_bbox((x1, y1, x2, y2))
+            output.append(TrackInfo(track_id=track.track_id, bbox=tightened, confidence=det_conf))
         return output
 
 
