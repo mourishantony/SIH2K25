@@ -35,21 +35,31 @@ FACE_REG_CAPTURE_DELAY=0.35
 
 ## Registering a Person
 
-Capture both unmasked and masked samples so the encoder learns to recognize the person in either state.
+Capture samples with and without a mask so the encoder learns to recognize the person in either state.
 
 ```powershell
-C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py "Person Name"
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py register "Person Name"
 ```
 
 Set `FACE_REG_USE_GPU=true` in `.env` if you want registration to default to CUDA without passing flags every run.
 
-If you prefer registering from pre-recorded clips instead of the webcam, set `FACE_REG_VIDEO_PROMPT=true`. The script will show a file chooser for each phase (mask off/on). Close the dialog or press cancel to fall back to the live camera for that phase.
+If you prefer registering from pre-recorded clips instead of the webcam, set `FACE_REG_VIDEO_PROMPT=true`. The script will show a file chooser when you start. Close the dialog or press cancel to fall back to the live camera.
 
-- Phase 1 runs with the mask **off**. Keep your face centered; samples are taken automatically every ~0.45s.
-- After Phase 1, the script pauses. Put on your mask and press `Enter` in the terminal to resume Phase 2.
+- The script runs a single continuous session collecting 50 samples by default.
+- **Click the video preview or press `Enter`** to capture each sample manually. The person can put on or remove their mask at any time during the session—there's no forced phase separation.
 - Press `q` in the preview window at any time to abort.
 
-You can tweak options such as `--unmasked-samples`, `--masked-samples`, `--camera-index`, and `--capture-delay` if needed.
+You can adjust `--total-samples`, `--camera-index`, and `--min-confidence` if needed.
+
+### Unregistering a Person
+
+To remove a registered identity from the database:
+
+```powershell
+C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py unregister "Person Name"
+```
+
+This deletes all embeddings for that person from `data/face_database.json`.
 
 ## Real-Time Recognition
 

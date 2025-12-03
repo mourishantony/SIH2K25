@@ -63,3 +63,13 @@ def flatten_registry(registry: Dict[str, List[np.ndarray]]):
     embeddings = np.vstack(vectors).astype(np.float32)
     names_arr = np.array(names)
     return names_arr, embeddings
+
+
+def remove_person(name: str) -> bool:
+    """Remove all embeddings for a given person. Returns True if the person existed."""
+    registry = load_facebank()
+    if name not in registry:
+        return False
+    del registry[name]
+    save_facebank(registry)
+    return True

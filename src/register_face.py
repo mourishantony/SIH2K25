@@ -45,13 +45,11 @@ def _select_primary_face(faces, min_confidence: float):
     )
 
 
-def _capture_phase(
+def _capture_continuous(
     cap: cv2.VideoCapture,
     analyzer,
     target_count: int,
-    phase_label: str,
     min_confidence: float,
-    capture_delay: float,
 ) -> List[np.ndarray]:
     global _capture_request
     samples: List[np.ndarray] = []
@@ -66,20 +64,19 @@ def _capture_phase(
         faces = analyzer.get(frame)
         face = _select_primary_face(faces, min_confidence)
 
-        status_line = f"{phase_label}: {len(samples)}/{target_count}"
-        capture_hint = "Click to capture"
+        status_line = f"Samples: {len(samples)}/{target_count}"
+        capture_hint = "Click/Enter to capture | Put on/remove mask anytime | q to abort"
 
         if face is not None:
             x1, y1, x2, y2 = map(int, face.bbox)
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(frame, status_line, (x1, max(y1 - 10, 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 220, 120), 2)
-            cv2.putText(frame, capture_hint, (25, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            cv2.putText(frame, capture_hint, (25, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
             if _capture_request:
-                # Debounce rapid clicks a bit to avoid accidental double-captures
                 if time.time() - last_capture >= 0.05:
                     samples.append(face.normed_embedding.copy())
                     last_capture = time.time()
-                    rprint(f"[cyan]{phase_label}[/] sample {len(samples)}/{target_count} recorded")
+                    rprint(f"[cyan]Sample {len(samples)}/{target_count}[/] recorded")
                 _capture_request = False
         else:
             cv2.putText(
@@ -91,12 +88,14 @@ def _capture_phase(
                 (0, 0, 255),
                 2,
             )
-            cv2.putText(frame, capture_hint, (25, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            cv2.putText(frame, capture_hint, (25, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
 
         cv2.imshow(WINDOW_NAME, frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             raise typer.Abort()
+        elif key == 13:  # Enter key
+            _capture_request = True
 
     return samples
 
@@ -104,17 +103,15 @@ def _capture_phase(
 @app.command()
 def register(
     name: str = typer.Argument(..., help="Person's name you want to register."),
-    unmasked_samples: int = typer.Option(register_settings.unmasked_samples, help="How many unmasked samples to capture."),
-    masked_samples: int = typer.Option(register_settings.masked_samples, help="How many masked samples to capture after the first phase."),
+    total_samples: int = typer.Option(50, help="Total number of samples to capture (with/without mask)."),
     camera_index: int = typer.Option(register_settings.camera_index, help="Webcam index passed to OpenCV."),
     min_confidence: float = typer.Option(register_settings.min_confidence, help="Minimum detector confidence to accept a face."),
-    capture_delay: float = typer.Option(register_settings.capture_delay, help="Seconds between stored samples to avoid near duplicates."),
     use_gpu: bool = typer.Option(register_settings.use_gpu, help="Use CUDAExecutionProvider when available (needs onnxruntime-gpu)."),
 ):
-    """Register a new person using ONLY the webcam.
+    """Register a new person in a single continuous session.
 
-    Click the left mouse button once to start capturing; click again to pause.
-    Press q at any time to abort.
+    Click the mouse or press Enter to capture each sample. You can put on or remove
+    your mask at any time during the session. Press q to abort.
     """
 
     global _window_size
@@ -132,38 +129,35 @@ def register(
     cv2.setMouseCallback(WINDOW_NAME, _mouse_callback)
 
     try:
-        rprint("[yellow]Phase 1:[/] keep your mask OFF and face the camera. Click to start, click again to pause. Press q to abort.")
-        unmasked = _capture_phase(
+        rprint("[yellow]Click or press Enter to capture samples. Put on/remove mask anytime. Press q to abort.[/]")
+        samples = _capture_continuous(
             shared_cam,
             analyzer,
-            unmasked_samples,
-            "No mask",
+            total_samples,
             min_confidence,
-            capture_delay,
         )
-
-        masked: List[np.ndarray] = []
-        if masked_samples > 0:
-            typer.secho("Put on your mask, then press ENTER to continue...", fg=typer.colors.YELLOW)
-            typer.prompt("Ready? hit ENTER when the mask is on", default="", show_default=False)
-            rprint("[yellow]Phase 2:[/] keep your mask ON. Click to start/pause capture. Press q to abort.")
-            masked = _capture_phase(
-                shared_cam,
-                analyzer,
-                masked_samples,
-                "Mask on",
-                min_confidence,
-                capture_delay,
-            )
 
     finally:
         if shared_cam is not None:
             shared_cam.release()
         cv2.destroyAllWindows()
 
-    stored = unmasked + masked
-    total = upsert_embeddings(name, stored)
-    rprint(f"[bold green]{len(stored)} samples stored for {name}. Total entries: {total}[/]")
+    total = upsert_embeddings(name, samples)
+    rprint(f"[bold green]{len(samples)} samples stored for {name}. Total entries: {total}[/]")
+
+
+@app.command()
+def unregister(
+    name: str = typer.Argument(..., help="Name of the person to remove from the database."),
+):
+    """Remove a registered person from the face database."""
+    from face_db import remove_person
+
+    success = remove_person(name)
+    if success:
+        rprint(f"[bold green]{name} has been removed from the database.[/]")
+    else:
+        rprint(f"[bold red]{name} was not found in the database.[/]")
 
 
 if __name__ == "__main__":
