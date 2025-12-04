@@ -143,4 +143,16 @@ export const alertsAPI = {
     api.get('/alerts/collision/recent', { params: { limit } }),
 };
 
+// Unknown Persons API
+export const unknownAPI = {
+  getAll: (params = {}) => 
+    api.get('/unknown/', { params }),
+  getById: (tempId) => 
+    api.get(`/unknown/${tempId}`),
+  getContacts: (tempId, limit = 50) => 
+    api.get(`/unknown/${tempId}/contacts`, { params: { limit } }),
+  markAsKnown: (tempId, personName) => 
+    api.post(`/unknown/${tempId}/mark-known`, { person_name: personName }),
+};
+
 export default api;

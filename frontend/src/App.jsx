@@ -9,6 +9,7 @@ import PersonsList from './pages/PersonsList';
 import MDRManagement from './pages/MDRManagement';
 import Alerts from './pages/Alerts';
 import AlertDetail from './pages/AlertDetail';
+import UnknownPersons from './pages/UnknownPersons';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -74,6 +75,7 @@ function App() {
         <Route path="mdr" element={<MDRManagement />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="alerts/:id" element={<AlertDetail />} />
+        <Route path="unknown-persons" element={<UnknownPersons />} />
       </Route>
       
       {/* Catch all */}

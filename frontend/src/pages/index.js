@@ -6,3 +6,4 @@ export { default as PersonsList } from './PersonsList';
 export { default as MDRManagement } from './MDRManagement';
 export { default as Alerts } from './Alerts';
 export { default as AlertDetail } from './AlertDetail';
+export { default as UnknownPersons } from './UnknownPersons';

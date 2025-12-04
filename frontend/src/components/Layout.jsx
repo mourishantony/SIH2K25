@@ -11,7 +11,8 @@ import {
   LogOut,
   Menu,
   X,
-  Activity
+  Activity,
+  UserX
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/persons', label: 'Registered Persons', icon: Users },
   { path: '/mdr', label: 'MDR Management', icon: AlertTriangle },
   { path: '/alerts', label: 'Alerts', icon: Bell },
+  { path: '/unknown-persons', label: 'Unknown Persons', icon: UserX },
 ];
 
 export default function Layout() {

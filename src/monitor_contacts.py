@@ -30,6 +30,7 @@ from mdr_tracker_mongo import is_mdr_patient, get_mdr_patients as load_mdr_patie
 from reid_tracker import PersonTracker, TrackInfo
 from ui_utils import pick_video_file
 from vision import get_analyzer
+from unknown_tracker_mongo import get_unknown_tracker, UnknownPersonTracker
 
 BBox = Tuple[int, int, int, int]
 WINDOW_NAME = "Dual-View Contact Monitor"
@@ -76,6 +77,11 @@ class PairState:
     other_person: Optional[str] = None
     mdr_alert_sent: bool = False
     start_timestamp: float = 0.0
+    # Unknown person tracking fields
+    involves_unknown: bool = False
+    unknown_temp_id: Optional[str] = None
+    unknown_track_id: Optional[int] = None
+    unknown_alert_sent: bool = False
 
 
 @dataclass
@@ -137,10 +143,15 @@ class ViewPipeline:
         mask_classifier: MaskClassifier,
         mask_memory: MaskMemory,
         timestamp: float,
+        unknown_tracker: Optional[UnknownPersonTracker] = None,
     ) -> FrameResult:
         tracks = self.tracker.update(frame)
         named_boxes: Dict[str, BBox] = {}
         faces = analyzer.get(frame)
+        
+        # Track which track_ids have unknown faces
+        unknown_track_faces: Dict[int, Tuple[np.ndarray, float, np.ndarray]] = {}  # track_id -> (crop, score, embedding)
+        
         for face in faces:
             if face.det_score < min_confidence:
                 continue
@@ -149,6 +160,54 @@ class ViewPipeline:
             identity, score = _predict_identity(embedding, names, embeddings, threshold)
             color = (0, 200, 100) if identity != "Unknown" else (0, 0, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            
+            # Handle unknown persons
+            if identity == "Unknown":
+                matched = _match_face_to_track((x1, y1, x2, y2), tracks)
+                if matched is not None and unknown_tracker is not None:
+                    # Store face crop for unknown person tracking
+                    face_crop = _crop(frame, (x1, y1, x2, y2))
+                    if face_crop.size > 0:
+                        unknown_track_faces[matched.track_id] = (face_crop, face.det_score, embedding)
+                    
+                    # Register or update unknown person
+                    state = unknown_tracker.register_unknown(
+                        track_id=matched.track_id,
+                        face_crop=face_crop if face_crop.size > 0 else None,
+                        face_score=face.det_score,
+                        face_embedding=embedding,
+                        monotonic_timestamp=timestamp,
+                    )
+                    
+                    # Use temp_id as the identity for tracking
+                    temp_id = state.temp_id
+                    self.track_identities[matched.track_id] = temp_id
+                    
+                    # Draw with temp_id
+                    cv2.putText(
+                        frame,
+                        f"{temp_id} {score:.2f}",
+                        (x1, max(y1 - 10, 20)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (0, 100, 255),  # Orange-red for unknown
+                        2,
+                    )
+                    
+                    body_box = _face_to_body_bbox((x1, y1, x2, y2), frame.shape)
+                    named_boxes[temp_id] = body_box
+                else:
+                    cv2.putText(
+                        frame,
+                        f"Unknown {score:.2f}",
+                        (x1, max(y1 - 10, 20)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        color,
+                        2,
+                    )
+                continue
+            
             cv2.putText(
                 frame,
                 f"{identity} {score:.2f}",
@@ -158,8 +217,6 @@ class ViewPipeline:
                 color,
                 2,
             )
-            if identity == "Unknown":
-                continue
             matched = _match_face_to_track((x1, y1, x2, y2), tracks)
             if matched is None:
                 body_box = _face_to_body_bbox((x1, y1, x2, y2), frame.shape)
@@ -458,6 +515,10 @@ def monitor_contacts(
     mask_classifier = MaskClassifier()
     ledger = ContactLedger()  # MongoDB-based, no log_dir needed
     mask_memory = MaskMemory(contact_settings.mask_decay_seconds)
+    
+    # Initialize unknown person tracker
+    unknown_tracker = get_unknown_tracker()
+    rprint(f"[cyan]✓ Unknown person tracking enabled[/]")
 
     front_source = ViewSource(
         label="Front",
@@ -524,6 +585,7 @@ def monitor_contacts(
                 mask_classifier=mask_classifier,
                 mask_memory=mask_memory,
                 timestamp=now,
+                unknown_tracker=unknown_tracker,
             )
             side_result = side_view.process(
                 frame_side,
@@ -535,6 +597,7 @@ def monitor_contacts(
                 mask_classifier=mask_classifier,
                 mask_memory=mask_memory,
                 timestamp=now,
+                unknown_tracker=unknown_tracker,
             )
 
             front_bboxes = _to_bounding_boxes(front_result.named_boxes)
@@ -580,6 +643,10 @@ def monitor_contacts(
                 confirmed_pairs = set(recent_front.keys()).union(recent_side.keys())
 
             timestamp_iso = datetime.now(timezone.utc).isoformat()
+            
+            # Get list of all registered person names for identifying unknown contacts
+            registered_names = set(names)
+            
             for pair in confirmed_pairs:
                 state = pair_states.setdefault(pair, PairState())
                 prob_a = mask_memory.probability(pair[0], now)
@@ -592,6 +659,7 @@ def monitor_contacts(
                     state.cumulative = 0.0
                     state.start_iso = timestamp_iso
                     state.start_timestamp = time.time()
+                    
                     # Check if this pair involves an MDR patient
                     if pair[0] in mdr_patients:
                         state.involves_mdr = True
@@ -601,10 +669,61 @@ def monitor_contacts(
                         state.involves_mdr = True
                         state.mdr_patient = pair[1]
                         state.other_person = pair[0]
+                    
+                    # Check if this pair involves an unknown person (temp ID starts with "Unknown_")
+                    person_a_unknown = pair[0].startswith("Unknown_")
+                    person_b_unknown = pair[1].startswith("Unknown_")
+                    person_a_registered = pair[0] in registered_names
+                    person_b_registered = pair[1] in registered_names
+                    
+                    if person_a_unknown and person_b_registered:
+                        state.involves_unknown = True
+                        state.unknown_temp_id = pair[0]
+                        # Find track ID for this unknown person
+                        for tid, name in front_view.track_identities.items():
+                            if name == pair[0]:
+                                state.unknown_track_id = tid
+                                unknown_tracker.log_contact_start(tid, pair[1], now)
+                                break
+                        for tid, name in side_view.track_identities.items():
+                            if name == pair[0]:
+                                state.unknown_track_id = tid
+                                unknown_tracker.log_contact_start(tid, pair[1], now)
+                                break
+                    elif person_b_unknown and person_a_registered:
+                        state.involves_unknown = True
+                        state.unknown_temp_id = pair[1]
+                        # Find track ID for this unknown person
+                        for tid, name in front_view.track_identities.items():
+                            if name == pair[1]:
+                                state.unknown_track_id = tid
+                                unknown_tracker.log_contact_start(tid, pair[0], now)
+                                break
+                        for tid, name in side_view.track_identities.items():
+                            if name == pair[1]:
+                                state.unknown_track_id = tid
+                                unknown_tracker.log_contact_start(tid, pair[0], now)
+                                break
+                
                 state.cumulative += delta_risk
                 state.end_iso = timestamp_iso
                 
-                # Check if MDR alert should be sent (ongoing contact >= 5 minutes)
+                # Check if MDR alert should be sent for unknown person contact
+                if state.involves_unknown and state.involves_mdr and not state.unknown_alert_sent:
+                    current_time = time.time()
+                    duration_seconds = current_time - state.start_timestamp
+                    if duration_seconds >= mdr_alert_threshold_seconds:
+                        unknown_tracker.send_mdr_alert_for_unknown(
+                            unknown_track_id=state.unknown_track_id,
+                            mdr_patient=state.mdr_patient,
+                            duration_seconds=duration_seconds,
+                            risk_percent=min(state.cumulative * 100, 100),
+                            front_snapshot=front_result.frame.copy(),
+                            side_snapshot=side_result.frame.copy(),
+                        )
+                        state.unknown_alert_sent = True
+                
+                # Check if MDR alert should be sent (ongoing contact >= threshold)
                 _check_mdr_alert(
                     pair,
                     state,
@@ -633,6 +752,19 @@ def monitor_contacts(
                         email_alerter,
                         mdr_alert_threshold_seconds,
                     )
+                    
+                    # Log unknown person contact end
+                    if state.involves_unknown and state.unknown_track_id is not None:
+                        registered_person = pair[0] if pair[1] == state.unknown_temp_id else pair[1]
+                        unknown_tracker.log_contact_end(
+                            unknown_track_id=state.unknown_track_id,
+                            registered_person=registered_person,
+                            cumulative_risk=state.cumulative,
+                            end_monotonic_timestamp=now,
+                            front_snapshot=front_result.frame.copy() if front_result else None,
+                            side_snapshot=side_result.frame.copy() if side_result else None,
+                        )
+                    
                     for a, b in (pair, pair[::-1]):
                         ledger.log_incident(
                             a,
@@ -642,6 +774,10 @@ def monitor_contacts(
                             cumulative_risk=state.cumulative,
                         )
                 pair_states.pop(pair, None)
+            
+            # Periodically clean up stale unknown persons
+            if frame_number % 300 == 0:  # Every ~10 seconds at 30fps
+                unknown_tracker.cleanup_stale_unknowns(max_age_seconds=300.0)
 
             combined = _combine_frames(front_result.frame, side_result.frame)
             _draw_risk_overlay(combined, pair_states)
@@ -652,6 +788,7 @@ def monitor_contacts(
             frame_number += 1
     finally:
         _flush_active_pairs(pair_states, ledger, email_alerter, mdr_alert_threshold_seconds)
+        unknown_tracker.flush_all()  # Store all unknown persons before exit
         front_capture.release()
         side_capture.release()
         cv2.destroyAllWindows()

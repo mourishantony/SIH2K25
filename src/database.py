@@ -90,6 +90,16 @@ def get_collision_alerts_collection() -> Collection:
     return get_database()["collision_alerts"]
 
 
+def get_unknown_persons_collection() -> Collection:
+    """Get unknown persons collection for tracking unregistered individuals."""
+    return get_database()["unknown_persons"]
+
+
+def get_unknown_contacts_collection() -> Collection:
+    """Get unknown contacts collection for tracking contacts with unknown persons."""
+    return get_database()["unknown_contacts"]
+
+
 def init_indexes():
     """Initialize database indexes for better performance."""
     try:
@@ -136,6 +146,19 @@ def init_indexes():
         collision_alerts = get_collision_alerts_collection()
         collision_alerts.create_index("timestamp")
         collision_alerts.create_index([("person1", ASCENDING), ("person2", ASCENDING)])
+        
+        # Unknown persons indexes
+        unknown_persons = get_unknown_persons_collection()
+        unknown_persons.create_index("temp_id", unique=True)
+        unknown_persons.create_index("first_seen")
+        unknown_persons.create_index("last_seen")
+        
+        # Unknown contacts indexes
+        unknown_contacts = get_unknown_contacts_collection()
+        unknown_contacts.create_index("unknown_temp_id")
+        unknown_contacts.create_index("registered_person")
+        unknown_contacts.create_index("timestamp")
+        unknown_contacts.create_index([("unknown_temp_id", ASCENDING), ("registered_person", ASCENDING)])
     except Exception as e:
         print(f"[DB] Warning creating indexes (may already exist): {e}")
 
