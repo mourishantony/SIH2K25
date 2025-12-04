@@ -101,6 +101,7 @@ class ContactSettings:
     overlap_threshold: float
     log_dir: Path
     pair_sync_window: float
+    require_both_cameras: bool
 
 
 @dataclass(frozen=True)
@@ -172,6 +173,7 @@ contact_settings = ContactSettings(
     overlap_threshold=_get_float("CONTACT_OVERLAP_THRESHOLD", 0.18),
     log_dir=_resolve_log_dir(),
     pair_sync_window=_get_float("CONTACT_SYNC_WINDOW", 0.5),
+    require_both_cameras=_get_bool("CONTACT_REQUIRE_BOTH_CAMERAS", False),
 )
 
 

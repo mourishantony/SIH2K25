@@ -5,3 +5,15 @@ __pycache__/
 /data/face_database.json
 mask_datas/
 Contact_Details/
+
+# Frontend dependencies and build files
+node_modules/
+frontend/node_modules/
+frontend/dist/
+package-lock.json
+frontend/package-lock.json
+
+# Model weights (downloaded automatically)
+*.pt
+*.pth
+*.onnx

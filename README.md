@@ -1,53 +1,136 @@
 # Patient Contact Tracing System
 
-This workspace provides a dual-camera contact tracing system for monitoring patient interactions. It uses InsightFace (ArcFace) for face recognition with mask support, YOLO + DeepSORT + OSNet for person tracking, and collision detection for risk assessment.
+A comprehensive dual-camera contact tracing system with a web interface for hospital MDR (Multi-Drug Resistant) patient monitoring. Built for **SIH 2025 Grand Finale**.
 
-## Prerequisites
+## Features
 
-1. Activate the provided virtual environment or your own Python 3.10+ environment.
-2. Install the dependencies:
-   ```powershell
-   C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe -m pip install -r requirements.txt
-   ```
-3. Ensure your cameras (laptop cam + external cam) are connected and accessible by OpenCV.
-4. Optional (GPU acceleration): uninstall the CPU runtime and install the CUDA build instead.
-   ```powershell
-   C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe -m pip uninstall -y onnxruntime
-   C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe -m pip install onnxruntime-gpu
-   ```
+- **Face Recognition**: InsightFace (ArcFace) with mask support
+- **Person Tracking**: YOLO + DeepSORT + OSNet for real-time tracking
+- **Collision Detection**: Monitors close contact between individuals
+- **MDR Management**: Track and manage multi-drug resistant patients
+- **Contact Alerts**: Email and web notifications for MDR contacts
+- **Web Dashboard**: React-based admin interface
 
-## Configuration via .env
+## Tech Stack
 
-1. Copy `.env.example` to `.env`.
-2. Edit the values to set your preferred defaults:
-   - `FACE_REG_*` entries control registration (samples, confidence, camera index, GPU flag)
-   - `FACE_REID_*` entries control person tracking (YOLO confidence, NMS thresholds, box shrink)
-   - `FRONT_*` / `SIDE_*` entries set the dual-camera sources
-   - `CONTACT_*` entries configure risk calculation parameters
-   - `COLLISION_*` entries set collision detection and alert thresholds
-3. CLI flags override environment variables when provided.
+- **Frontend**: React 18, Vite, TailwindCSS
+- **Backend**: FastAPI, Python 3.10+
+- **Database**: MongoDB
+- **AI/ML**: InsightFace, YOLO, DeepSORT, OSNet
 
-Example settings:
+---
 
-```env
-FACE_REG_TOTAL_SAMPLES=50
-FACE_REG_USE_GPU=true
-COLLISION_MIN_RISK_FOR_ALERT=0.4
-FRONT_CAMERA_INDEX=0
-SIDE_CAMERA_INDEX=1
-```
+## Quick Start
 
-## Core Workflow
+### 1. Prerequisites
 
-This project provides three main commands for patient contact tracing:
+- Python 3.10+
+- Node.js 18+
+- MongoDB (running locally or remote)
+- Webcam (for face registration)
 
-### 1. Register a Person
-
-Capture face samples with and without a mask using the live camera.
+### 2. Backend Setup
 
 ```powershell
-C:/Users/mourish/Desktop/sih_01/venv/Scripts/python.exe src/register_face.py register "Person Name"
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Configure environment (edit .env file)
+# Set MONGODB_URI, JWT_SECRET_KEY, SMTP settings, etc.
+
+# Start the backend server
+python start_server.py
 ```
+
+Backend will be available at: `http://localhost:8000`
+API docs at: `http://localhost:8000/docs`
+
+### 3. Frontend Setup
+
+```powershell
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Frontend will be available at: `http://localhost:3000`
+
+### 4. Default Admin Login
+
+On first run, a default admin user is created:
+- **Username**: `admin`
+- **Password**: `admin123`
+
+⚠️ **Change the password after first login!**
+
+---
+
+## Web Application Pages
+
+1. **Login/Register**: User authentication
+2. **Dashboard**: System overview with stats and recent activity
+3. **Register Person**: Capture face images via webcam (50 samples)
+4. **Registered Persons**: View, edit, delete registered individuals
+5. **MDR Management**: Mark/unmark patients as MDR, view contacts
+6. **Alerts**: MDR contact notifications with snapshots
+
+---
+
+## Contact Monitoring (CLI)
+
+The monitoring system still runs via command line:
+
+```powershell
+python src/monitor_contacts.py
+```
+
+This will:
+- Use dual cameras for person tracking
+- Detect close contacts between individuals
+- Store contact data in MongoDB
+- Send email alerts for MDR contacts
+- Display real-time alerts in the web interface
+
+---
+
+## Configuration (.env)
+
+Key settings in `.env`:
+
+```env
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=patient_contact_tracing
+
+# JWT Authentication
+JWT_SECRET_KEY=your-secret-key-min-32-chars
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# Email Alerts
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+
+# Face Registration
+FACE_REGISTRATION_TOTAL_SAMPLES=50
+FACE_RECOGNITION_THRESHOLD=0.35
+```
+
+---
+
+## Legacy CLI Commands
+
+### Register a Person (CLI)
+
+```powershell
+python src/register_face.py register "Person Name"
+```
+
 
 - The script runs a single continuous session collecting 50 samples by default
 - **Click the video preview or press `Enter`** to capture each sample manually

@@ -12,7 +12,8 @@ import numpy as np
 import typer
 from rich import print as rprint
 
-from alert_system import AlertSystem
+# MongoDB-based modules (use these for web integration)
+from alert_system_mongo import AlertSystemMongo as AlertSystem
 from collision_detector import (
     BoundingBox,
     Collision,
@@ -21,11 +22,11 @@ from collision_detector import (
     verify_collision_across_cameras,
 )
 from config import collision_settings, contact_settings, dual_view_settings, recognition_settings
-from contact_store import ContactLedger
-from email_alerter import EmailAlerter, MDRContactAlert
-from face_db import flatten_registry, load_facebank
+from contact_store_mongo import ContactLedgerMongo as ContactLedger
+from email_alerter_mongo import EmailAlerterMongo as EmailAlerter, MDRContactAlert
+from face_db_mongo import flatten_registry, load_facebank
 from mask_classifier import MaskClassifier
-from mdr_tracker import is_mdr_patient, load_mdr_patients
+from mdr_tracker_mongo import is_mdr_patient, get_mdr_patients as load_mdr_patients
 from reid_tracker import PersonTracker, TrackInfo
 from ui_utils import pick_video_file
 from vision import get_analyzer
@@ -455,7 +456,7 @@ def monitor_contacts(
     embeddings = embeddings.astype(np.float32)
     analyzer = get_analyzer((det_size, det_size), use_gpu=use_gpu)
     mask_classifier = MaskClassifier()
-    ledger = ContactLedger(contact_settings.log_dir)
+    ledger = ContactLedger()  # MongoDB-based, no log_dir needed
     mask_memory = MaskMemory(contact_settings.mask_decay_seconds)
 
     front_source = ViewSource(
@@ -482,7 +483,6 @@ def monitor_contacts(
     front_collision_tracker = CollisionTracker(collision_settings.alert_duration_seconds)
     side_collision_tracker = CollisionTracker(collision_settings.alert_duration_seconds)
     alert_system = AlertSystem(
-        log_dir=collision_settings.alert_log_dir,
         min_risk=collision_settings.min_risk_for_alert,
         duration_threshold=collision_settings.alert_duration_seconds,
         min_alert_interval=collision_settings.alert_cooldown_seconds,
@@ -571,7 +571,13 @@ def monitor_contacts(
                     continue
                 verified_collision_map[_pair_key(base.person1, base.person2)] = (primary, partner)
 
-            confirmed_pairs = set(recent_front.keys()).intersection(recent_side.keys())
+            # Determine confirmed pairs based on setting
+            # If require_both_cameras is True, use intersection (both cameras must detect)
+            # If False, use union (any camera detection counts)
+            if contact_settings.require_both_cameras:
+                confirmed_pairs = set(recent_front.keys()).intersection(recent_side.keys())
+            else:
+                confirmed_pairs = set(recent_front.keys()).union(recent_side.keys())
 
             timestamp_iso = datetime.now(timezone.utc).isoformat()
             for pair in confirmed_pairs:
@@ -724,18 +730,69 @@ def _flush_active_pairs(
 
 
 def _draw_risk_overlay(frame: np.ndarray, pair_states: Dict[Tuple[str, str], PairState]) -> None:
-    entries = [(pair[0], pair[1], state.cumulative, state.active) for pair, state in pair_states.items() if state.cumulative > 0]
+    """Draw risk overlay on the combined frame showing active contacts and risk levels."""
+    entries = [(pair[0], pair[1], state.cumulative, state.active, state.involves_mdr, state.mdr_patient) 
+               for pair, state in pair_states.items() if state.cumulative > 0]
     entries.sort(key=lambda item: item[2], reverse=True)
-    for idx, (person_a, person_b, cumulative, active) in enumerate(entries[:4]):
-        text = f"{person_a} ↔ {person_b}: {cumulative:.3f}{'*' if active else ''}"
+    
+    y_offset = 60  # Start below the Front/Side labels
+    
+    for idx, (person_a, person_b, cumulative, active, involves_mdr, mdr_patient) in enumerate(entries[:6]):
+        risk_percent = min(cumulative * 100, 100)
+        
+        # Choose colors based on MDR status and risk level
+        if involves_mdr:
+            # Red for MDR contacts
+            color = (0, 0, 255)
+            bg_color = (0, 0, 180)
+            prefix = "🚨 MDR ALERT: "
+        elif risk_percent >= 40:
+            color = (0, 165, 255)  # Orange
+            bg_color = (0, 100, 150)
+            prefix = "⚠ HIGH RISK: "
+        elif active:
+            color = (0, 255, 255)  # Yellow
+            bg_color = (0, 150, 150)
+            prefix = ""
+        else:
+            color = (200, 200, 200)  # Gray
+            bg_color = (100, 100, 100)
+            prefix = ""
+        
+        text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
+        
+        # Get text size for background
+        (text_w, text_h), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+        
+        # Draw background rectangle
+        cv2.rectangle(
+            frame,
+            (20, y_offset + idx * 28 - text_h - 2),
+            (30 + text_w, y_offset + idx * 28 + baseline + 2),
+            bg_color,
+            -1
+        )
+        
         cv2.putText(
             frame,
             text,
-            (25, 35 + idx * 24),
+            (25, y_offset + idx * 28),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
-            (0, 255, 255) if active else (200, 200, 200),
+            color,
             2,
+        )
+    
+    # Show "No Active Contacts" if no pairs detected
+    if not entries:
+        cv2.putText(
+            frame,
+            "No active contacts",
+            (25, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (150, 150, 150),
+            1,
         )
 
 
