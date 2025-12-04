@@ -153,6 +153,12 @@ export const unknownAPI = {
     api.get(`/unknown/${tempId}/contacts`, { params: { limit } }),
   markAsKnown: (tempId, personName) => 
     api.post(`/unknown/${tempId}/mark-known`, { person_name: personName }),
+  delete: (tempId) => 
+    api.delete(`/unknown/${tempId}`),
+  register: (tempId, data) => 
+    api.post(`/unknown/${tempId}/register`, data),
+  getSettings: () => 
+    api.get('/unknown/settings'),
 };
 
 export default api;

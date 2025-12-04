@@ -188,6 +188,10 @@ collision_settings = CollisionSettings(
     alert_log_dir=_resolve_alert_dir(),
 )
 
+# Unknown person registration settings
+UNKNOWN_REGISTER_MAX_IMAGES = _get_int("UNKNOWN_REGISTER_MAX_IMAGES", 50)
+MDR_ALERT_THRESHOLD_SECONDS = _get_float("MDR_ALERT_THRESHOLD_SECONDS", 300.0)  # 5 minutes
+
 __all__ = [
     "register_settings",
     "recognition_settings",

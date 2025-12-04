@@ -381,14 +381,34 @@ def get_unknown_tracker() -> UnknownPersonTracker:
 def get_all_unknown_persons(limit: int = 100) -> List[Dict[str, Any]]:
     """Get all unknown persons from database."""
     col = get_unknown_persons_collection()
+    contacts_col = get_unknown_contacts_collection()
     results = []
+    
+    # Get all MDR patient names for checking contacts
+    from mdr_tracker_mongo import get_mdr_patients
+    mdr_patients = set(get_mdr_patients())
+    
     for doc in col.find().sort("created_at", -1).limit(limit):
+        temp_id = doc["temp_id"]
+        
+        # Get contact count for this unknown person
+        contact_count = contacts_col.count_documents({"unknown_temp_id": temp_id})
+        
+        # Check if they contacted any MDR patient
+        contacted_mdr = contacts_col.count_documents({
+            "unknown_temp_id": temp_id,
+            "registered_person": {"$in": list(mdr_patients)}
+        }) > 0
+        
         results.append({
             "id": str(doc["_id"]),
             "temp_id": doc["temp_id"],
             "first_seen": doc["first_seen"],
             "last_seen": doc["last_seen"],
-            "has_face": "face_snapshot_base64" in doc,
+            "snapshot": doc.get("face_snapshot_base64"),  # Frontend expects 'snapshot'
+            "contact_count": contact_count,
+            "contacted_mdr": contacted_mdr,
+            "best_face_score": doc.get("best_face_score", 0),
             "created_at": doc["created_at"],
         })
     return results
@@ -397,18 +417,65 @@ def get_all_unknown_persons(limit: int = 100) -> List[Dict[str, Any]]:
 def get_unknown_person_detail(temp_id: str) -> Optional[Dict[str, Any]]:
     """Get detailed info for an unknown person including face snapshot."""
     col = get_unknown_persons_collection()
+    contacts_col = get_unknown_contacts_collection()
     doc = col.find_one({"temp_id": temp_id})
     if not doc:
         return None
+    
+    # Get contact count
+    contact_count = contacts_col.count_documents({"unknown_temp_id": temp_id})
     
     return {
         "id": str(doc["_id"]),
         "temp_id": doc["temp_id"],
         "first_seen": doc["first_seen"],
         "last_seen": doc["last_seen"],
+        "snapshot": doc.get("face_snapshot_base64"),
         "face_snapshot_base64": doc.get("face_snapshot_base64"),
+        "contact_count": contact_count,
+        "best_face_score": doc.get("best_face_score", 0),
         "created_at": doc["created_at"],
+        "linked_to": doc.get("linked_to"),  # If linked to a registered person
     }
+
+
+def mark_unknown_as_known(temp_id: str, person_name: str) -> bool:
+    """Link an unknown person to a registered person.
+    
+    This updates the contact history to reference the registered person,
+    then DELETES the unknown person record.
+    """
+    from database import get_persons_collection
+    
+    col = get_unknown_persons_collection()
+    contacts_col = get_unknown_contacts_collection()
+    persons_col = get_persons_collection()
+    
+    # Verify unknown person exists
+    unknown_doc = col.find_one({"temp_id": temp_id})
+    if not unknown_doc:
+        return False
+    
+    # Verify registered person exists
+    person_doc = persons_col.find_one({"name": person_name})
+    if not person_doc:
+        return False
+    
+    # Update all contacts to reference the linked person
+    contacts_col.update_many(
+        {"unknown_temp_id": temp_id},
+        {"$set": {
+            "linked_to_registered": person_name,
+            "linked_at": datetime.utcnow(),
+            "original_unknown_id": temp_id,
+        }}
+    )
+    
+    # DELETE the unknown person record (image is no longer needed since linked to existing person)
+    col.delete_one({"temp_id": temp_id})
+    
+    rprint(f"[green]Unknown person linked and removed:[/] {temp_id} → {person_name}")
+    return True
 
 
 def get_unknown_contacts_for_person(registered_person: str) -> List[Dict[str, Any]]:
@@ -482,3 +549,156 @@ def get_unknown_contacts_with_mdr_patient(mdr_patient: str) -> List[Dict[str, An
         })
     
     return results
+
+
+def delete_unknown_person(temp_id: str) -> bool:
+    """Delete an unknown person and their contact history.
+    
+    Returns True if deleted, False if not found.
+    """
+    col = get_unknown_persons_collection()
+    contacts_col = get_unknown_contacts_collection()
+    
+    # Check if exists
+    doc = col.find_one({"temp_id": temp_id})
+    if not doc:
+        return False
+    
+    # Delete the unknown person
+    col.delete_one({"temp_id": temp_id})
+    
+    # Delete their contact history
+    contacts_col.delete_many({"unknown_temp_id": temp_id})
+    
+    rprint(f"[red]Unknown person deleted:[/] {temp_id}")
+    return True
+
+
+def register_unknown_as_person(
+    temp_id: str,
+    name: str,
+    role: str = "patient",
+    phone: str = "",
+    place: str = "",
+    notes: str = "",
+    additional_images: List[str] = None,  # List of base64 encoded images
+    registered_by: str = "system"
+) -> Dict[str, Any]:
+    """Convert an unknown person to a registered person.
+    
+    This will:
+    1. Create a new registered person with the provided name
+    2. Store the face embedding for recognition
+    3. Store face images (captured + additional uploaded)
+    4. Transfer contact history
+    5. DELETE the unknown person record
+    
+    Returns dict with success status and details.
+    """
+    from database import get_persons_collection, get_face_embeddings_collection, get_face_images_collection
+    
+    col = get_unknown_persons_collection()
+    contacts_col = get_unknown_contacts_collection()
+    persons_col = get_persons_collection()
+    embeddings_col = get_face_embeddings_collection()
+    images_col = get_face_images_collection()
+    
+    if additional_images is None:
+        additional_images = []
+    
+    # Check if unknown person exists
+    unknown_doc = col.find_one({"temp_id": temp_id})
+    if not unknown_doc:
+        return {"success": False, "error": f"Unknown person '{temp_id}' not found"}
+    
+    # Check if person name already exists
+    existing = persons_col.find_one({"name": name})
+    if existing:
+        return {"success": False, "error": f"Person '{name}' already exists"}
+    
+    # Get face data from unknown person
+    face_embedding = unknown_doc.get("face_embedding")
+    face_snapshot = unknown_doc.get("face_snapshot_base64")
+    
+    # Create the new registered person
+    now = datetime.utcnow()
+    person_doc = {
+        "name": name,
+        "role": role,
+        "phone": phone if phone else None,
+        "place": place if place else None,
+        "notes": notes,
+        "created_at": now,
+        "registered_at": now,
+        "registered_by": registered_by,
+        "is_mdr": False,
+        "face_trained": face_embedding is not None,
+        "embedding_count": 1 if face_embedding else 0,
+        "converted_from_unknown": temp_id,
+    }
+    person_result = persons_col.insert_one(person_doc)
+    person_id = str(person_result.inserted_id)
+    # Store face embedding if available
+    if face_embedding:
+        embeddings_col.insert_one({
+            "person_name": name,
+            "embedding": face_embedding,
+            "created_at": datetime.utcnow(),
+            "source": "unknown_person_conversion",
+            "original_temp_id": temp_id,
+        })
+    
+    # Store face images - captured snapshot + any additional uploaded images
+    image_count = 0
+    
+    # Store the captured face snapshot
+    if face_snapshot:
+        images_col.insert_one({
+            "person_name": name,
+            "image_base64": face_snapshot,
+            "created_at": datetime.utcnow(),
+            "source": "unknown_person_conversion",
+            "original_temp_id": temp_id,
+            "image_index": 0,
+        })
+        image_count += 1
+    
+    # Store additional uploaded images
+    for idx, img_base64 in enumerate(additional_images):
+        if img_base64:
+            images_col.insert_one({
+                "person_name": name,
+                "image_base64": img_base64,
+                "created_at": datetime.utcnow(),
+                "source": "unknown_person_registration_upload",
+                "image_index": image_count + idx,
+            })
+            image_count += 1
+    
+    # Update contact history to reference the new registered person
+    contacts_col.update_many(
+        {"unknown_temp_id": temp_id},
+        {"$set": {
+            "linked_to_registered": name,
+            "linked_at": datetime.utcnow(),
+            "original_unknown_id": temp_id,
+        }}
+    )
+    
+    # DELETE the unknown person record (data has been transferred)
+    col.delete_one({"temp_id": temp_id})
+    
+    rprint(f"[green]Unknown person registered and removed:[/] {temp_id} → {name} ({role})")
+    
+    return {
+        "success": True,
+        "message": f"Successfully registered {temp_id} as {name}",
+        "temp_id": temp_id,
+        "person_id": person_id,
+        "person_name": name,
+        "role": role,
+        "phone": phone,
+        "place": place,
+        "has_face_embedding": face_embedding is not None,
+        "image_count": image_count,
+    }

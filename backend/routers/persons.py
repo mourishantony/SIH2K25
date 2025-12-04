@@ -47,18 +47,22 @@ class PersonResponse(BaseModel):
 
 # Helper function to convert MongoDB document to response
 def person_to_response(doc: dict) -> dict:
+    # Handle both created_at and registered_at (from unknown person conversion)
+    created_at = doc.get("created_at") or doc.get("registered_at")
+    
     return {
         "id": str(doc["_id"]),
         "name": doc["name"],
-        "role": doc["role"],
+        "role": doc.get("role", "patient"),
         "phone": doc.get("phone"),
         "place": doc.get("place"),
         "notes": doc.get("notes"),
         "is_mdr": doc.get("is_mdr", False),
         "face_trained": doc.get("face_trained", False),
         "embedding_count": doc.get("embedding_count", 0),
-        "created_at": doc["created_at"],
-        "updated_at": doc.get("updated_at")
+        "created_at": created_at,
+        "updated_at": doc.get("updated_at"),
+        "converted_from_unknown": doc.get("converted_from_unknown"),  # Track if converted from unknown
     }
 
 

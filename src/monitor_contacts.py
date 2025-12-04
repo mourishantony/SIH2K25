@@ -745,34 +745,41 @@ def monitor_contacts(
             for pair in list(inactive_pairs):
                 state = pair_states[pair]
                 if state.active and state.start_iso and state.end_iso and state.cumulative > 0:
-                    # Send MDR completion alert if needed (contact ended)
-                    _send_mdr_completion_alert(
-                        pair,
-                        state,
-                        email_alerter,
-                        mdr_alert_threshold_seconds,
-                    )
+                    # Calculate contact duration
+                    contact_duration = time.time() - state.start_timestamp
                     
-                    # Log unknown person contact end
-                    if state.involves_unknown and state.unknown_track_id is not None:
-                        registered_person = pair[0] if pair[1] == state.unknown_temp_id else pair[1]
-                        unknown_tracker.log_contact_end(
-                            unknown_track_id=state.unknown_track_id,
-                            registered_person=registered_person,
-                            cumulative_risk=state.cumulative,
-                            end_monotonic_timestamp=now,
-                            front_snapshot=front_result.frame.copy() if front_result else None,
-                            side_snapshot=side_result.frame.copy() if side_result else None,
+                    # Only log contacts if duration exceeds threshold
+                    if contact_duration >= mdr_alert_threshold_seconds:
+                        # Send MDR completion alert if needed (contact ended)
+                        _send_mdr_completion_alert(
+                            pair,
+                            state,
+                            email_alerter,
+                            mdr_alert_threshold_seconds,
                         )
-                    
-                    for a, b in (pair, pair[::-1]):
-                        ledger.log_incident(
-                            a,
-                            b,
-                            start_time=state.start_iso,
-                            end_time=state.end_iso,
-                            cumulative_risk=state.cumulative,
-                        )
+                        
+                        # Log unknown person contact end
+                        if state.involves_unknown and state.unknown_track_id is not None:
+                            registered_person = pair[0] if pair[1] == state.unknown_temp_id else pair[1]
+                            unknown_tracker.log_contact_end(
+                                unknown_track_id=state.unknown_track_id,
+                                registered_person=registered_person,
+                                cumulative_risk=state.cumulative,
+                                end_monotonic_timestamp=now,
+                                front_snapshot=front_result.frame.copy() if front_result else None,
+                                side_snapshot=side_result.frame.copy() if side_result else None,
+                            )
+                        
+                        for a, b in (pair, pair[::-1]):
+                            ledger.log_incident(
+                                a,
+                                b,
+                                start_time=state.start_iso,
+                                end_time=state.end_iso,
+                                cumulative_risk=state.cumulative,
+                            )
+                    else:
+                        rprint(f"[dim]Contact {pair[0]} ↔ {pair[1]} duration {contact_duration:.1f}s < threshold {mdr_alert_threshold_seconds}s, not logged[/]")
                 pair_states.pop(pair, None)
             
             # Periodically clean up stale unknown persons
@@ -847,22 +854,29 @@ def _flush_active_pairs(
 ) -> None:
     for pair, state in list(pair_states.items()):
         if state.active and state.start_iso and state.end_iso and state.cumulative > 0:
-            # Send MDR completion alert if applicable
-            if email_alerter:
-                _send_mdr_completion_alert(
-                    pair,
-                    state,
-                    email_alerter,
-                    mdr_alert_threshold_seconds,
-                )
-            for a, b in (pair, pair[::-1]):
-                ledger.log_incident(
-                    a,
-                    b,
-                    start_time=state.start_iso,
-                    end_time=state.end_iso,
-                    cumulative_risk=state.cumulative,
-                )
+            # Calculate contact duration
+            contact_duration = time.time() - state.start_timestamp if state.start_timestamp > 0 else 0.0
+            
+            # Only log contacts if duration exceeds threshold
+            if contact_duration >= mdr_alert_threshold_seconds:
+                # Send MDR completion alert if applicable
+                if email_alerter:
+                    _send_mdr_completion_alert(
+                        pair,
+                        state,
+                        email_alerter,
+                        mdr_alert_threshold_seconds,
+                    )
+                for a, b in (pair, pair[::-1]):
+                    ledger.log_incident(
+                        a,
+                        b,
+                        start_time=state.start_iso,
+                        end_time=state.end_iso,
+                        cumulative_risk=state.cumulative,
+                    )
+            else:
+                rprint(f"[dim]Flushing contact {pair[0]} ↔ {pair[1]} duration {contact_duration:.1f}s < threshold {mdr_alert_threshold_seconds}s, not logged[/]")
         pair_states.pop(pair, None)
 
 

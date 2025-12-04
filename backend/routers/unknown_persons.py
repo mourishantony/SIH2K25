@@ -1,7 +1,8 @@
 """Unknown persons router for tracking unregistered individuals."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
@@ -9,6 +10,30 @@ from bson import ObjectId
 from routers.auth import get_current_user
 
 router = APIRouter()
+
+
+class MarkKnownRequest(BaseModel):
+    person_name: str
+
+
+class RegisterUnknownRequest(BaseModel):
+    name: str
+    role: str = "patient"
+    phone: str = ""
+    place: str = ""
+    notes: str = ""
+    additional_images: List[str] = []  # List of base64 encoded face images
+
+
+@router.get("/settings")
+async def get_registration_settings(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get settings for unknown person registration."""
+    from config import UNKNOWN_REGISTER_MAX_IMAGES
+    return {
+        "max_images": UNKNOWN_REGISTER_MAX_IMAGES,
+    }
 
 
 @router.get("/")
@@ -53,19 +78,25 @@ async def get_unknown_person_contacts(
 ):
     """Get all contacts for an unknown person."""
     from database import get_unknown_contacts_collection
+    from mdr_tracker_mongo import is_mdr_patient
     
     col = get_unknown_contacts_collection()
     contacts = []
     
     for doc in col.find({"unknown_temp_id": temp_id}).sort("timestamp", -1).limit(limit):
+        registered_person = doc["registered_person"]
         contacts.append({
             "id": str(doc["_id"]),
-            "registered_person": doc["registered_person"],
+            "other_person": registered_person,
+            "registered_person": registered_person,
+            "other_is_mdr": is_mdr_patient(registered_person),
             "start_time": doc.get("start_time"),
             "end_time": doc.get("end_time"),
-            "duration_seconds": doc.get("duration_seconds"),
+            "duration_sec": doc.get("duration_seconds", 0),
+            "duration_seconds": doc.get("duration_seconds", 0),
             "risk_percent": doc.get("risk_percent", 0),
-            "timestamp": doc["timestamp"],
+            "contact_time": doc.get("timestamp"),
+            "timestamp": doc.get("timestamp"),
             "has_snapshot": "front_snapshot_base64" in doc or "side_snapshot_base64" in doc,
         })
     
@@ -73,6 +104,31 @@ async def get_unknown_person_contacts(
         "unknown_temp_id": temp_id,
         "total": len(contacts),
         "contacts": contacts
+    }
+
+
+@router.post("/{temp_id}/mark-known")
+async def mark_unknown_as_known_endpoint(
+    temp_id: str,
+    request: MarkKnownRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Link an unknown person to a registered person."""
+    from unknown_tracker_mongo import mark_unknown_as_known
+    
+    success = mark_unknown_as_known(temp_id, request.person_name)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Failed to link '{temp_id}' to '{request.person_name}'. Check that both exist."
+        )
+    
+    return {
+        "success": True,
+        "message": f"Successfully linked {temp_id} to {request.person_name}",
+        "temp_id": temp_id,
+        "linked_to": request.person_name
     }
 
 
@@ -147,3 +203,62 @@ async def get_contact_snapshot(
         "front_snapshot_base64": doc.get("front_snapshot_base64"),
         "side_snapshot_base64": doc.get("side_snapshot_base64"),
     }
+
+
+@router.delete("/{temp_id}")
+async def delete_unknown_person(
+    temp_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete an unknown person and their contact history."""
+    from unknown_tracker_mongo import delete_unknown_person as do_delete
+    
+    success = do_delete(temp_id)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown person '{temp_id}' not found"
+        )
+    
+    return {
+        "success": True,
+        "message": f"Successfully deleted {temp_id}",
+        "temp_id": temp_id
+    }
+
+
+@router.post("/{temp_id}/register")
+async def register_unknown_person(
+    temp_id: str,
+    request: RegisterUnknownRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Convert an unknown person to a registered person.
+    
+    This will:
+    1. Create a new registered person with the provided name, phone, place
+    2. Use the unknown person's face snapshot + any additional images for face registration
+    3. Transfer contact history to the new person
+    4. DELETE the unknown person record
+    """
+    from unknown_tracker_mongo import register_unknown_as_person
+    
+    result = register_unknown_as_person(
+        temp_id=temp_id,
+        name=request.name,
+        role=request.role,
+        phone=request.phone,
+        place=request.place,
+        notes=request.notes,
+        additional_images=request.additional_images,
+        registered_by=current_user.get("username", "system")
+    )
+    
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Failed to register unknown person")
+        )
+    
+    return result
