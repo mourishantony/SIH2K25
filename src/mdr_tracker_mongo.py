@@ -27,13 +27,23 @@ def get_mdr_patients_details() -> List[Dict[str, Any]]:
             "name": doc["name"],
             "marked_at": doc.get("marked_at"),
             "marked_by": doc.get("marked_by", "system"),
-            "notes": doc.get("notes", "")
+            "notes": doc.get("notes", ""),
+            "pathogen_type": doc.get("pathogen_type", "Other"),
+            "pathogen_factor": doc.get("pathogen_factor", 1.0),
         })
     return patients
 
 
-def mark_as_mdr(name: str, marked_by: str = "system", notes: str = "") -> bool:
+def mark_as_mdr(
+    name: str, 
+    marked_by: str = "system", 
+    notes: str = "",
+    pathogen_type: str = "Other",
+    pathogen_factor: Optional[float] = None,
+) -> bool:
     """Mark a patient as MDR. Returns True if newly marked, False if already marked."""
+    from config import MDR_PATHOGEN_FACTORS
+    
     collection = get_mdr_patients_collection()
     
     # Check if already marked
@@ -41,19 +51,30 @@ def mark_as_mdr(name: str, marked_by: str = "system", notes: str = "") -> bool:
     if existing:
         return False
     
+    # Get pathogen factor from config if not provided
+    if pathogen_factor is None:
+        pathogen_factor = MDR_PATHOGEN_FACTORS.get(pathogen_type, 1.0)
+    
     # Mark as MDR
     collection.insert_one({
         "name": name,
         "marked_at": datetime.utcnow(),
         "marked_by": marked_by,
-        "notes": notes
+        "notes": notes,
+        "pathogen_type": pathogen_type,
+        "pathogen_factor": pathogen_factor,
     })
     
     # Update person's is_mdr flag
     persons = get_persons_collection()
     persons.update_one(
         {"name": name},
-        {"$set": {"is_mdr": True, "mdr_marked_at": datetime.utcnow()}}
+        {"$set": {
+            "is_mdr": True, 
+            "mdr_marked_at": datetime.utcnow(),
+            "pathogen_type": pathogen_type,
+            "pathogen_factor": pathogen_factor,
+        }}
     )
     
     return True
@@ -84,7 +105,7 @@ def is_mdr_patient(name: str) -> bool:
 
 
 def get_mdr_patient_info(name: str) -> Optional[Dict[str, Any]]:
-    """Get MDR patient information."""
+    """Get MDR patient information including pathogen details."""
     collection = get_mdr_patients_collection()
     doc = collection.find_one({"name": name})
     if doc:
@@ -92,9 +113,23 @@ def get_mdr_patient_info(name: str) -> Optional[Dict[str, Any]]:
             "name": doc["name"],
             "marked_at": doc.get("marked_at"),
             "marked_by": doc.get("marked_by", "system"),
-            "notes": doc.get("notes", "")
+            "notes": doc.get("notes", ""),
+            "pathogen_type": doc.get("pathogen_type", "Other"),
+            "pathogen_factor": doc.get("pathogen_factor", 1.0),
         }
     return None
+
+
+def get_pathogen_info(name: str) -> tuple:
+    """Get pathogen type and factor for an MDR patient.
+    
+    Returns (pathogen_type, pathogen_factor) or ("Other", 1.0) if not found.
+    """
+    collection = get_mdr_patients_collection()
+    doc = collection.find_one({"name": name}, {"pathogen_type": 1, "pathogen_factor": 1})
+    if doc:
+        return doc.get("pathogen_type", "Other"), doc.get("pathogen_factor", 1.0)
+    return "Other", 1.0
 
 
 def update_mdr_notes(name: str, notes: str) -> bool:
@@ -115,5 +150,6 @@ __all__ = [
     "unmark_mdr",
     "is_mdr_patient",
     "get_mdr_patient_info",
+    "get_pathogen_info",
     "update_mdr_notes",
 ]

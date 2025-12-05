@@ -21,6 +21,10 @@ class ContactLedgerMongo:
         start_time: str,
         end_time: str,
         cumulative_risk: float,
+        mdr_risk_score: float = 0.0,
+        pathogen_type: str = None,
+        pathogen_factor: float = None,
+        is_mdr_contact: bool = False,
     ) -> str:
         """Log a contact incident. Returns the inserted document ID."""
         doc = {
@@ -31,7 +35,12 @@ class ContactLedgerMongo:
             "cumulative_risk": cumulative_risk,
             "risk_percent": min(100.0, cumulative_risk * 100.0),
             "timestamp": datetime.utcnow(),
-            "created_at": datetime.utcnow()
+            "created_at": datetime.utcnow(),
+            # MDR specific fields
+            "is_mdr_contact": is_mdr_contact,
+            "mdr_risk_score": mdr_risk_score,
+            "pathogen_type": pathogen_type,
+            "pathogen_factor": pathogen_factor,
         }
         result = self.collection.insert_one(doc)
         return str(result.inserted_id)

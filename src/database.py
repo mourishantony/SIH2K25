@@ -56,8 +56,55 @@ def get_users_collection() -> Collection:
 
 
 def get_persons_collection() -> Collection:
-    """Get persons collection (patients, doctors, visitors, workers)."""
+    """Get persons collection (patients, doctors, visitors, workers, nurses)."""
     return get_database()["persons"]
+
+
+def get_person_id_counters_collection() -> Collection:
+    """Get person ID counters collection for auto-generating person IDs."""
+    return get_database()["person_id_counters"]
+
+
+def generate_person_id(role: str) -> str:
+    """Generate the next person ID based on role.
+    
+    Format:
+    - Patient: P001, P002, ...
+    - Doctor: D001, D002, ...
+    - Visitor: V001, V002, ...
+    - Nurse: N001, N002, ...
+    - Worker: W001, W002, ...
+    
+    Uses MongoDB's findOneAndUpdate with upsert for atomic counter increment.
+    """
+    # Map role to prefix
+    role_prefixes = {
+        "patient": "P",
+        "doctor": "D",
+        "visitor": "V",
+        "nurse": "N",
+        "worker": "W",
+    }
+    
+    role_lower = role.lower()
+    prefix = role_prefixes.get(role_lower, "X")  # X for unknown roles
+    
+    counters_col = get_person_id_counters_collection()
+    
+    # Atomic increment and return the new value
+    result = counters_col.find_one_and_update(
+        {"role": role_lower},
+        {"$inc": {"counter": 1}},
+        upsert=True,
+        return_document=True  # Return the document after the update
+    )
+    
+    counter = result["counter"]
+    
+    # Format with leading zeros (3 digits)
+    person_id = f"{prefix}{counter:03d}"
+    
+    return person_id
 
 
 def get_face_embeddings_collection() -> Collection:

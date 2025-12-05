@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import time
 from dataclasses import dataclass, field
@@ -77,6 +78,13 @@ class PairState:
     other_person: Optional[str] = None
     mdr_alert_sent: bool = False
     start_timestamp: float = 0.0
+    # MDR risk calculation fields (R = T*P*V / D^2)
+    pathogen_type: str = "Other"
+    pathogen_factor: float = 1.0
+    mdr_risk_score: float = 0.0  # Calculated MDR risk score
+    last_pixel_distance: float = 0.0
+    mdr_patient_masked: bool = False
+    other_person_masked: bool = False
     # Unknown person tracking fields
     involves_unknown: bool = False
     unknown_temp_id: Optional[str] = None
@@ -152,6 +160,9 @@ class ViewPipeline:
         # Track which track_ids have unknown faces
         unknown_track_faces: Dict[int, Tuple[np.ndarray, float, np.ndarray]] = {}  # track_id -> (crop, score, embedding)
         
+        # Store all recognized faces with their body boxes - ALWAYS add to named_boxes
+        recognized_faces: Dict[str, BBox] = {}  # identity -> body_box
+        
         for face in faces:
             if face.det_score < min_confidence:
                 continue
@@ -194,8 +205,9 @@ class ViewPipeline:
                         2,
                     )
                     
-                    body_box = _face_to_body_bbox((x1, y1, x2, y2), frame.shape)
-                    named_boxes[temp_id] = body_box
+                    # Use track bbox if available, otherwise estimate from face
+                    body_box = (matched.bbox[0], matched.bbox[1], matched.bbox[2], matched.bbox[3])
+                    recognized_faces[temp_id] = body_box
                 else:
                     cv2.putText(
                         frame,
@@ -208,6 +220,7 @@ class ViewPipeline:
                     )
                 continue
             
+            # RECOGNIZED PERSON - Always create a body bounding box
             cv2.putText(
                 frame,
                 f"{identity} {score:.2f}",
@@ -217,50 +230,68 @@ class ViewPipeline:
                 color,
                 2,
             )
+            
+            # Try to match face to a body track
             matched = _match_face_to_track((x1, y1, x2, y2), tracks)
-            if matched is None:
+            
+            if matched is not None:
+                # Use track's body bounding box
+                body_box = (matched.bbox[0], matched.bbox[1], matched.bbox[2], matched.bbox[3])
+                previous_track = self.identity_claims.get(identity)
+                if previous_track is not None and previous_track != matched.track_id:
+                    self.track_identities.pop(previous_track, None)
+                self.track_identities[matched.track_id] = identity
+                self.identity_claims[identity] = matched.track_id
+            else:
+                # No track match - estimate body box from face
                 body_box = _face_to_body_bbox((x1, y1, x2, y2), frame.shape)
-                cv2.rectangle(frame, (body_box[0], body_box[1]), (body_box[2], body_box[3]), (0, 215, 255), 2)
-                cv2.putText(
-                    frame,
-                    identity,
-                    (body_box[0], max(body_box[1] - 10, 20)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 215, 255),
-                    2,
-                )
-                named_boxes[identity] = body_box
-                continue
-            previous_track = self.identity_claims.get(identity)
-            if previous_track is not None and previous_track != matched.track_id:
-                self.track_identities.pop(previous_track, None)
-            self.track_identities[matched.track_id] = identity
-            self.identity_claims[identity] = matched.track_id
+            
+            # ALWAYS add recognized person to named_boxes with their body box
+            recognized_faces[identity] = body_box
+            
+            # Draw the body bounding box for this recognized person (thick green line)
+            cv2.rectangle(frame, (body_box[0], body_box[1]), (body_box[2], body_box[3]), (0, 255, 0), 3)
+            cv2.putText(
+                frame,
+                identity,
+                (body_box[0], body_box[3] + 20),  # Below the box
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 0),
+                2,
+            )
+            
+            # Update mask memory
             crop = _crop(frame, (x1, y1, x2, y2))
             mask_probability = mask_classifier.probability(crop)
             mask_memory.update(identity, mask_probability, timestamp)
 
+        # Clean up stale track identities
         active_ids = {track.track_id for track in tracks}
         self.track_identities = {tid: name for tid, name in self.track_identities.items() if tid in active_ids}
         self.identity_claims = {name: tid for name, tid in self.identity_claims.items() if tid in active_ids}
 
+        # Draw all tracks (for visualization - dimmer color for unrecognized tracks)
         for track in tracks:
             x1, y1, x2, y2 = track.bbox
             assigned = self.track_identities.get(track.track_id, f"Track {track.track_id}")
-            color = (255, 191, 0) if assigned.startswith("Track") else (0, 165, 255)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(
-                frame,
-                assigned,
-                (x1, max(y1 - 10, 20)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                color,
-                2,
-            )
-            if not assigned.startswith("Track"):
-                named_boxes[assigned] = (x1, y1, x2, y2)
+            # Only draw track boxes for unrecognized tracks (recognized ones already have body boxes)
+            if assigned.startswith("Track"):
+                color = (255, 191, 0)  # Orange-ish for unrecognized tracks
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(
+                    frame,
+                    assigned,
+                    (x1, max(y1 - 10, 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    color,
+                    2,
+                )
+        
+        # Use recognized_faces as the primary source for named_boxes
+        # This ensures every face-recognized person has a body box for collision detection
+        named_boxes = recognized_faces
 
         cv2.putText(
             frame,
@@ -603,6 +634,15 @@ def monitor_contacts(
             front_bboxes = _to_bounding_boxes(front_result.named_boxes)
             side_bboxes = _to_bounding_boxes(side_result.named_boxes)
 
+            # Debug: Log detected persons every 60 frames (~2 seconds)
+            if frame_number % 60 == 0:
+                if front_bboxes:
+                    persons_front = [f"{b.person_name}({b.x1},{b.y1},{b.x2},{b.y2})" for b in front_bboxes]
+                    rprint(f"[dim green]Front view persons: {', '.join(persons_front)}[/]")
+                if side_bboxes:
+                    persons_side = [f"{b.person_name}({b.x1},{b.y1},{b.x2},{b.y2})" for b in side_bboxes]
+                    rprint(f"[dim blue]Side view persons: {', '.join(persons_side)}[/]")
+
             front_collisions = front_collision_tracker.update_collisions(
                 detect_collisions(
                     front_bboxes,
@@ -627,6 +667,13 @@ def monitor_contacts(
             _update_recent_contacts(recent_front, front_pairs, now, contact_settings.pair_sync_window)
             _update_recent_contacts(recent_side, side_pairs, now, contact_settings.pair_sync_window)
 
+            # Debug: Log collision detection status every 30 frames (~1 second)
+            if frame_number % 30 == 0 and (front_collisions or side_collisions):
+                for col in front_collisions:
+                    rprint(f"[dim cyan]Front collision: {col.person1} ↔ {col.person2} | IoU={col.iou:.3f} dist={col.distance:.0f}px risk={col.risk_score:.2f}[/]")
+                for col in side_collisions:
+                    rprint(f"[dim magenta]Side collision: {col.person1} ↔ {col.person2} | IoU={col.iou:.3f} dist={col.distance:.0f}px risk={col.risk_score:.2f}[/]")
+
             verified_collision_map: Dict[Tuple[str, str], Tuple[Optional[Collision], Optional[Collision]]] = {}
             for primary, partner in verify_collision_across_cameras(front_collisions, side_collisions):
                 base = primary or partner
@@ -638,7 +685,17 @@ def monitor_contacts(
             # If require_both_cameras is True, use intersection (both cameras must detect)
             # If False, use union (any camera detection counts)
             if contact_settings.require_both_cameras:
-                confirmed_pairs = set(recent_front.keys()).intersection(recent_side.keys())
+                # Require that a collision is present in BOTH camera views at the same time.
+                # Use the verified_collision_map which contains pairs where primary (front)
+                # and partner (side) collisions were matched. Only include pairs where
+                # both sides have a Collision object (not None) and where both views
+                # have recent contact entries (within the pair_sync_window).
+                confirmed_pairs = set()
+                for key, (primary, partner) in verified_collision_map.items():
+                    if primary is not None and partner is not None:
+                        # Ensure the pair was recently seen in both front and side maps
+                        if key in recent_front and key in recent_side:
+                            confirmed_pairs.add(key)
             else:
                 confirmed_pairs = set(recent_front.keys()).union(recent_side.keys())
 
@@ -665,10 +722,16 @@ def monitor_contacts(
                         state.involves_mdr = True
                         state.mdr_patient = pair[0]
                         state.other_person = pair[1]
+                        # Get pathogen info for MDR risk calculation
+                        from mdr_tracker_mongo import get_pathogen_info
+                        state.pathogen_type, state.pathogen_factor = get_pathogen_info(pair[0])
                     elif pair[1] in mdr_patients:
                         state.involves_mdr = True
                         state.mdr_patient = pair[1]
                         state.other_person = pair[0]
+                        # Get pathogen info for MDR risk calculation
+                        from mdr_tracker_mongo import get_pathogen_info
+                        state.pathogen_type, state.pathogen_factor = get_pathogen_info(pair[1])
                     
                     # Check if this pair involves an unknown person (temp ID starts with "Unknown_")
                     person_a_unknown = pair[0].startswith("Unknown_")
@@ -707,6 +770,47 @@ def monitor_contacts(
                 
                 state.cumulative += delta_risk
                 state.end_iso = timestamp_iso
+                
+                # Update mask status for the pair
+                state.mdr_patient_masked = prob_a > 0.5 if pair[0] == state.mdr_patient else prob_b > 0.5
+                state.other_person_masked = prob_b > 0.5 if pair[0] == state.mdr_patient else prob_a > 0.5
+                
+                # Calculate MDR risk score using formula: R = (T * P * V) / D^2
+                if state.involves_mdr:
+                    from mdr_risk_calculator import calculate_mdr_risk
+                    
+                    # Get bounding boxes for the pair to calculate pixel distance
+                    box_mdr = front_result.named_boxes.get(state.mdr_patient) or side_result.named_boxes.get(state.mdr_patient)
+                    box_other = front_result.named_boxes.get(state.other_person) or side_result.named_boxes.get(state.other_person)
+                    
+                    if box_mdr and box_other:
+                        # Calculate pixel distance between centers
+                        center_mdr = ((box_mdr[0] + box_mdr[2]) / 2, (box_mdr[1] + box_mdr[3]) / 2)
+                        center_other = ((box_other[0] + box_other[2]) / 2, (box_other[1] + box_other[3]) / 2)
+                        pixel_distance = math.sqrt(
+                            (center_mdr[0] - center_other[0])**2 + 
+                            (center_mdr[1] - center_other[1])**2
+                        )
+                        state.last_pixel_distance = pixel_distance
+                        
+                        # Get box heights for distance estimation
+                        box_mdr_height = box_mdr[3] - box_mdr[1]
+                        box_other_height = box_other[3] - box_other[1]
+                        
+                        # Calculate duration in seconds
+                        duration_seconds = time.time() - state.start_timestamp
+                        
+                        # Calculate MDR risk score
+                        risk_result = calculate_mdr_risk(
+                            duration_seconds=duration_seconds,
+                            pixel_distance=pixel_distance,
+                            pathogen_type=state.pathogen_type,
+                            is_contact_masked=state.other_person_masked,
+                            is_mdr_masked=state.mdr_patient_masked,
+                            box1_height=float(box_mdr_height),
+                            box2_height=float(box_other_height),
+                        )
+                        state.mdr_risk_score = risk_result.risk_score
                 
                 # Check if MDR alert should be sent for unknown person contact
                 if state.involves_unknown and state.involves_mdr and not state.unknown_alert_sent:
@@ -770,6 +874,7 @@ def monitor_contacts(
                                 side_snapshot=side_result.frame.copy() if side_result else None,
                             )
                         
+                        # Log contact with MDR risk data if applicable
                         for a, b in (pair, pair[::-1]):
                             ledger.log_incident(
                                 a,
@@ -777,6 +882,10 @@ def monitor_contacts(
                                 start_time=state.start_iso,
                                 end_time=state.end_iso,
                                 cumulative_risk=state.cumulative,
+                                mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
+                                pathogen_type=state.pathogen_type if state.involves_mdr else None,
+                                pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
+                                is_mdr_contact=state.involves_mdr,
                             )
                     else:
                         rprint(f"[dim]Contact {pair[0]} ↔ {pair[1]} duration {contact_duration:.1f}s < threshold {mdr_alert_threshold_seconds}s, not logged[/]")
@@ -874,6 +983,10 @@ def _flush_active_pairs(
                         start_time=state.start_iso,
                         end_time=state.end_iso,
                         cumulative_risk=state.cumulative,
+                        mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
+                        pathogen_type=state.pathogen_type if state.involves_mdr else None,
+                        pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
+                        is_mdr_contact=state.involves_mdr,
                     )
             else:
                 rprint(f"[dim]Flushing contact {pair[0]} ↔ {pair[1]} duration {contact_duration:.1f}s < threshold {mdr_alert_threshold_seconds}s, not logged[/]")
@@ -882,35 +995,55 @@ def _flush_active_pairs(
 
 def _draw_risk_overlay(frame: np.ndarray, pair_states: Dict[Tuple[str, str], PairState]) -> None:
     """Draw risk overlay on the combined frame showing active contacts and risk levels."""
-    entries = [(pair[0], pair[1], state.cumulative, state.active, state.involves_mdr, state.mdr_patient) 
-               for pair, state in pair_states.items() if state.cumulative > 0]
-    entries.sort(key=lambda item: item[2], reverse=True)
+    entries = [
+        (pair[0], pair[1], state.cumulative, state.active, state.involves_mdr, 
+         state.mdr_patient, state.mdr_risk_score, state.pathogen_type, state.pathogen_factor) 
+        for pair, state in pair_states.items() if state.cumulative > 0
+    ]
+    entries.sort(key=lambda item: (item[4], item[2]), reverse=True)  # Sort by MDR first, then cumulative
     
     y_offset = 60  # Start below the Front/Side labels
     
-    for idx, (person_a, person_b, cumulative, active, involves_mdr, mdr_patient) in enumerate(entries[:6]):
+    for idx, (person_a, person_b, cumulative, active, involves_mdr, mdr_patient, 
+              mdr_risk_score, pathogen_type, pathogen_factor) in enumerate(entries[:6]):
         risk_percent = min(cumulative * 100, 100)
         
         # Choose colors based on MDR status and risk level
         if involves_mdr:
-            # Red for MDR contacts
-            color = (0, 0, 255)
-            bg_color = (0, 0, 180)
-            prefix = "🚨 MDR ALERT: "
+            # Use MDR risk score for display if available
+            display_risk = mdr_risk_score if mdr_risk_score > 0 else risk_percent
+            
+            # Color based on MDR risk level
+            if display_risk >= 80:
+                color = (128, 0, 128)  # Purple - Critical
+                bg_color = (80, 0, 80)
+            elif display_risk >= 60:
+                color = (0, 0, 255)  # Red - High
+                bg_color = (0, 0, 180)
+            elif display_risk >= 40:
+                color = (0, 165, 255)  # Orange - Medium
+                bg_color = (0, 100, 150)
+            else:
+                color = (0, 200, 255)  # Yellow - Low
+                bg_color = (0, 150, 150)
+            
+            prefix = f"🚨 MDR [{pathogen_type}]: "
+            text = f"{prefix}{person_a} ↔ {person_b}: {display_risk:.1f}%{'*' if active else ''}"
         elif risk_percent >= 40:
             color = (0, 165, 255)  # Orange
             bg_color = (0, 100, 150)
             prefix = "⚠ HIGH RISK: "
+            text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
         elif active:
             color = (0, 255, 255)  # Yellow
             bg_color = (0, 150, 150)
             prefix = ""
+            text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
         else:
             color = (200, 200, 200)  # Gray
             bg_color = (100, 100, 100)
             prefix = ""
-        
-        text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
+            text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
         
         # Get text size for background
         (text_w, text_h), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)

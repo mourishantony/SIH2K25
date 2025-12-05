@@ -29,6 +29,7 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     patients_count = persons.count_documents({"role": "patient"})
     doctors_count = persons.count_documents({"role": "doctor"})
     visitors_count = persons.count_documents({"role": "visitor"})
+    nurses_count = persons.count_documents({"role": "nurse"})
     workers_count = persons.count_documents({"role": "worker"})
     total_persons = persons.count_documents({})
     
@@ -60,6 +61,7 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
             "patients": patients_count,
             "doctors": doctors_count,
             "visitors": visitors_count,
+            "nurses": nurses_count,
             "workers": workers_count
         },
         "mdr": {

@@ -797,12 +797,11 @@ export default function UnknownPersons() {
                     onChange={(e) => setRegisterRole(e.target.value)}
                     className="input"
                   >
-                    <option value="patient">Patient</option>
-                    <option value="staff">Staff</option>
-                    <option value="visitor">Visitor</option>
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                    <option value="other">Other</option>
+                    <option value="patient">Patient (P###)</option>
+                    <option value="doctor">Doctor (D###)</option>
+                    <option value="visitor">Visitor (V###)</option>
+                    <option value="nurse">Nurse (N###)</option>
+                    <option value="worker">Worker (W###)</option>
                   </select>
                 </div>
                 

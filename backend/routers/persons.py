@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from bson import ObjectId
 
-from database import get_persons_collection, get_face_embeddings_collection, get_mdr_patients_collection
+from database import get_persons_collection, get_face_embeddings_collection, get_mdr_patients_collection, generate_person_id
 from routers.auth import get_current_user
 
 router = APIRouter()
@@ -17,7 +17,7 @@ router = APIRouter()
 # Pydantic Models
 class PersonCreate(BaseModel):
     name: str
-    role: str  # patient, doctor, visitor, worker
+    role: str  # patient, doctor, visitor, worker, nurse
     phone: Optional[str] = None
     place: Optional[str] = None
     notes: Optional[str] = None
@@ -33,6 +33,7 @@ class PersonUpdate(BaseModel):
 
 class PersonResponse(BaseModel):
     id: str
+    person_id: str  # Auto-generated ID like P001, D001, V001, N001, W001
     name: str
     role: str
     phone: Optional[str]
@@ -52,6 +53,7 @@ def person_to_response(doc: dict) -> dict:
     
     return {
         "id": str(doc["_id"]),
+        "person_id": doc.get("person_id", ""),  # Auto-generated ID like P001, D001, etc.
         "name": doc["name"],
         "role": doc.get("role", "patient"),
         "phone": doc.get("phone"),
@@ -102,13 +104,14 @@ async def get_persons(
 
 @router.get("/roles")
 async def get_roles(current_user: dict = Depends(get_current_user)):
-    """Get available roles."""
+    """Get available roles with their ID prefixes."""
     return {
         "roles": [
-            {"value": "patient", "label": "Patient"},
-            {"value": "doctor", "label": "Doctor"},
-            {"value": "visitor", "label": "Visitor"},
-            {"value": "worker", "label": "Worker"}
+            {"value": "patient", "label": "Patient", "prefix": "P"},
+            {"value": "doctor", "label": "Doctor", "prefix": "D"},
+            {"value": "visitor", "label": "Visitor", "prefix": "V"},
+            {"value": "nurse", "label": "Nurse", "prefix": "N"},
+            {"value": "worker", "label": "Worker", "prefix": "W"}
         ]
     }
 
@@ -153,7 +156,7 @@ async def create_person(
     person: PersonCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a new person."""
+    """Create a new person with auto-generated ID (P001, D001, V001, N001, W001)."""
     collection = get_persons_collection()
     
     # Check if name already exists
@@ -163,16 +166,20 @@ async def create_person(
             detail="Person with this name already exists"
         )
     
-    # Validate role
-    valid_roles = ["patient", "doctor", "visitor", "worker"]
+    # Validate role (including nurse)
+    valid_roles = ["patient", "doctor", "visitor", "worker", "nurse"]
     if person.role not in valid_roles:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid role. Must be one of: {valid_roles}"
         )
     
+    # Generate auto ID based on role (P001, D001, V001, N001, W001)
+    auto_person_id = generate_person_id(person.role)
+    
     # Create person
     new_person = {
+        "person_id": auto_person_id,  # Auto-generated ID like P001, D001, etc.
         "name": person.name,
         "role": person.role,
         "phone": person.phone,

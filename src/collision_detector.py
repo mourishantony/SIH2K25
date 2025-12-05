@@ -75,11 +75,28 @@ def calculate_distance(box_a: BoundingBox, box_b: BoundingBox) -> float:
 
 
 def calculate_risk_score(iou: float, distance: float, frame_diagonal: float) -> float:
+    """Calculate risk score based on IoU and distance.
+    
+    When boxes overlap (IoU > 0), that's a strong indicator of close contact.
+    When boxes are close but don't overlap, use distance-based risk.
+    """
     normalized_distance = distance / frame_diagonal if frame_diagonal > 0 else 1.0
-    iou_weight = 0.7
-    distance_weight = 0.3
-    iou_risk = max(0.0, min(1.0, iou))
-    distance_risk = max(0.0, 1.0 - normalized_distance)
+    
+    # If there's any overlap, weight it heavily
+    if iou > 0:
+        iou_weight = 0.6
+        distance_weight = 0.4
+        iou_risk = max(0.0, min(1.0, iou * 2))  # Amplify IoU contribution
+    else:
+        # No overlap - rely more on distance
+        iou_weight = 0.0
+        distance_weight = 1.0
+        iou_risk = 0.0
+    
+    # Distance risk: closer = higher risk (inverse relationship)
+    # Use exponential decay for more sensitivity to close distances
+    distance_risk = max(0.0, 1.0 - (normalized_distance ** 0.5))  # Square root for gentler decay
+    
     risk_score = (iou_weight * iou_risk) + (distance_weight * distance_risk)
     return max(0.0, min(1.0, risk_score))
 
@@ -99,11 +116,17 @@ def get_risk_level(score: float) -> str:
 def detect_collisions(
     bboxes: Sequence[BoundingBox],
     *,
-    iou_threshold: float = 0.1,
-    distance_threshold: float = 200.0,
+    iou_threshold: float = 0.01,  # Very low - any overlap counts
+    distance_threshold: float = 350.0,  # Increased - detect close proximity even without overlap
     frame_width: int = 640,
     frame_height: int = 480,
 ) -> List[Collision]:
+    """Detect collisions (close contacts) between bounding boxes.
+    
+    A collision is detected if EITHER:
+    - IoU >= iou_threshold (boxes overlap), OR
+    - Distance between centers <= distance_threshold (boxes are close)
+    """
     collisions: List[Collision] = []
     if not bboxes:
         return collisions
@@ -114,8 +137,11 @@ def detect_collisions(
             box2 = bboxes[jdx]
             iou = calculate_iou(box1, box2)
             distance = calculate_distance(box1, box2)
+            
+            # Detect collision if boxes overlap OR are close enough
             if iou < iou_threshold and distance > distance_threshold:
                 continue
+                
             risk_score = calculate_risk_score(iou, distance, frame_diagonal)
             risk_level = get_risk_level(risk_score)
             collisions.append(

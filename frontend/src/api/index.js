@@ -109,8 +109,10 @@ export const mdrAPI = {
     api.get('/mdr/patients'),
   getPatient: (name) => 
     api.get(`/mdr/patients/${name}`),
-  markAsMDR: (personName, notes = '') => 
-    api.post('/mdr/mark', { person_name: personName, notes }),
+  getPathogens: () =>
+    api.get('/mdr/pathogens'),
+  markAsMDR: (personName, pathogenType = 'Other', notes = '') => 
+    api.post('/mdr/mark', { person_name: personName, pathogen_type: pathogenType, notes }),
   unmarkMDR: (personName) => 
     api.post('/mdr/unmark', { person_name: personName }),
   updatePatient: (name, data) => 

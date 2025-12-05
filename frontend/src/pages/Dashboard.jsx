@@ -7,13 +7,29 @@ import {
   Stethoscope, 
   HardHat, 
   Eye,
+  Heart,
   AlertTriangle,
   Activity,
   TrendingUp,
   Bell,
-  ArrowRight
+  ArrowRight,
+  BarChart3,
+  PieChart as PieChartIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -77,6 +93,14 @@ export default function Dashboard() {
       textColor: 'text-warning-600'
     },
     {
+      label: 'Nurses',
+      value: stats?.persons?.nurses || 0,
+      icon: Heart,
+      color: 'pink',
+      bgColor: 'bg-pink-50',
+      textColor: 'text-pink-600'
+    },
+    {
       label: 'Workers',
       value: stats?.persons?.workers || 0,
       icon: HardHat,
@@ -129,6 +153,157 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Registered Persons by Role - Bar Chart */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">Registered Persons by Role</h2>
+            <BarChart3 className="h-5 w-5 text-gray-400" />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[
+                  { name: 'Patients', count: stats?.persons?.patients || 0, fill: '#3b82f6' },
+                  { name: 'Doctors', count: stats?.persons?.doctors || 0, fill: '#22c55e' },
+                  { name: 'Visitors', count: stats?.persons?.visitors || 0, fill: '#f59e0b' },
+                  { name: 'Nurses', count: stats?.persons?.nurses || 0, fill: '#ec4899' },
+                  { name: 'Workers', count: stats?.persons?.workers || 0, fill: '#6b7280' },
+                ]}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                />
+                <YAxis 
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  allowDecimals={false}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value) => [value, 'Count']}
+                />
+                <Bar 
+                  dataKey="count" 
+                  radius={[4, 4, 0, 0]}
+                >
+                  {[
+                    { name: 'Patients', fill: '#3b82f6' },
+                    { name: 'Doctors', fill: '#22c55e' },
+                    { name: 'Visitors', fill: '#f59e0b' },
+                    { name: 'Nurses', fill: '#ec4899' },
+                    { name: 'Workers', fill: '#6b7280' },
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 grid grid-cols-5 gap-2 text-center">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <p className="text-lg font-bold text-blue-600">{stats?.persons?.patients || 0}</p>
+              <p className="text-xs text-gray-500">Patients</p>
+            </div>
+            <div className="p-2 bg-green-50 rounded-lg">
+              <p className="text-lg font-bold text-green-600">{stats?.persons?.doctors || 0}</p>
+              <p className="text-xs text-gray-500">Doctors</p>
+            </div>
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <p className="text-lg font-bold text-amber-600">{stats?.persons?.visitors || 0}</p>
+              <p className="text-xs text-gray-500">Visitors</p>
+            </div>
+            <div className="p-2 bg-pink-50 rounded-lg">
+              <p className="text-lg font-bold text-pink-600">{stats?.persons?.nurses || 0}</p>
+              <p className="text-xs text-gray-500">Nurses</p>
+            </div>
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <p className="text-lg font-bold text-gray-600">{stats?.persons?.workers || 0}</p>
+              <p className="text-xs text-gray-500">Workers</p>
+            </div>
+          </div>
+        </div>
+
+        {/* MDR vs Non-MDR - Pie Chart */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">MDR Patient Distribution</h2>
+            <PieChartIcon className="h-5 w-5 text-gray-400" />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'MDR Patients', value: stats?.mdr?.total || 0, color: '#ef4444' },
+                    { name: 'Non-MDR', value: Math.max((stats?.persons?.total || 0) - (stats?.mdr?.total || 0), 0), color: '#22c55e' },
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) => percent > 0 ? `${(percent * 100).toFixed(0)}%` : ''}
+                  labelLine={false}
+                >
+                  <Cell fill="#ef4444" />
+                  <Cell fill="#22c55e" />
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value, name) => [value, name]}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  formatter={(value, entry) => (
+                    <span style={{ color: '#374151', fontSize: '12px' }}>{value}</span>
+                  )}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <div>
+                  <p className="text-2xl font-bold text-red-600">{stats?.mdr?.total || 0}</p>
+                  <p className="text-sm text-gray-500">MDR Patients</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="text-2xl font-bold text-green-600">
+                    {Math.max((stats?.persons?.total || 0) - (stats?.mdr?.total || 0), 0)}
+                  </p>
+                  <p className="text-sm text-gray-500">Non-MDR Persons</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

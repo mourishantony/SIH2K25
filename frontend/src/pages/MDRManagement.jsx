@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { mdrAPI, personsAPI } from '../api';
 import { 
   AlertTriangle, Search, Plus, X, User, Check,
-  Calendar, Users, ArrowRight, RefreshCw
+  Calendar, Users, ArrowRight, RefreshCw, Biohazard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -11,22 +11,27 @@ import { format } from 'date-fns';
 export default function MDRManagement() {
   const [mdrPatients, setMdrPatients] = useState([]);
   const [eligiblePersons, setEligiblePersons] = useState([]);
+  const [pathogens, setPathogens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showMarkModal, setShowMarkModal] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
+  const [selectedPathogen, setSelectedPathogen] = useState('Other');
+  const [mdrNotes, setMdrNotes] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContacts, setSelectedContacts] = useState(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [mdrRes, eligibleRes] = await Promise.all([
+      const [mdrRes, eligibleRes, pathogensRes] = await Promise.all([
         mdrAPI.getPatients(),
-        mdrAPI.getEligible()
+        mdrAPI.getEligible(),
+        mdrAPI.getPathogens()
       ]);
       // Backend returns {total, patients: [...]} and {total, eligible_patients: [...]}
       setMdrPatients(mdrRes.data.patients || mdrRes.data || []);
       setEligiblePersons(eligibleRes.data.eligible_patients || eligibleRes.data || []);
+      setPathogens(pathogensRes.data.pathogens || []);
     } catch (error) {
       toast.error('Failed to fetch data');
     } finally {
@@ -42,10 +47,12 @@ export default function MDRManagement() {
     if (!selectedPerson) return;
     
     try {
-      await mdrAPI.markAsMDR(selectedPerson);
-      toast.success(`${selectedPerson} marked as MDR patient`);
+      await mdrAPI.markAsMDR(selectedPerson, selectedPathogen, mdrNotes);
+      toast.success(`${selectedPerson} marked as MDR patient (${selectedPathogen})`);
       setShowMarkModal(false);
       setSelectedPerson(null);
+      setSelectedPathogen('Other');
+      setMdrNotes('');
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to mark as MDR');
@@ -75,6 +82,18 @@ export default function MDRManagement() {
   const filteredEligible = eligiblePersons.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getPathogenColor = (type) => {
+    const colors = {
+      'MRSA': 'bg-orange-100 text-orange-700 border-orange-200',
+      'MDR-TB': 'bg-red-100 text-red-700 border-red-200',
+      'VRE': 'bg-purple-100 text-purple-700 border-purple-200',
+      'CRE': 'bg-pink-100 text-pink-700 border-pink-200',
+      'ESBL': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+      'Other': 'bg-gray-100 text-gray-700 border-gray-200',
+    };
+    return colors[type] || colors['Other'];
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -160,7 +179,12 @@ export default function MDRManagement() {
                     <User className="h-6 w-6 text-red-600" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">{patient.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-gray-900">{patient.name}</h3>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getPathogenColor(patient.pathogen_type)}`}>
+                        {patient.pathogen_type || 'Other'} ({patient.pathogen_factor || 1.0})
+                      </span>
+                    </div>
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -217,7 +241,7 @@ export default function MDRManagement() {
               </div>
             </div>
 
-            <div className="max-h-60 overflow-y-auto mb-4">
+            <div className="max-h-48 overflow-y-auto mb-4">
               {filteredEligible.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   No eligible patients found
@@ -252,10 +276,45 @@ export default function MDRManagement() {
               )}
             </div>
 
+            {/* Pathogen Type Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Pathogen Type (Risk Factor)
+              </label>
+              <select
+                value={selectedPathogen}
+                onChange={(e) => setSelectedPathogen(e.target.value)}
+                className="input"
+              >
+                {pathogens.map((p) => (
+                  <option key={p.type} value={p.type}>
+                    {p.type} - {p.description} (Factor: {p.factor})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Higher factor = more dangerous pathogen (used in risk calculation)
+              </p>
+            </div>
+
+            {/* Notes */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                value={mdrNotes}
+                onChange={(e) => setMdrNotes(e.target.value)}
+                placeholder="Additional notes about the MDR status..."
+                className="input min-h-[60px]"
+                rows={2}
+              />
+            </div>
+
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-yellow-800">
                 <strong>Warning:</strong> Marking a patient as MDR will trigger alerts for all 
-                detected contacts. Email notifications will be sent based on system configuration.
+                detected contacts.
               </p>
             </div>
 
@@ -264,6 +323,8 @@ export default function MDRManagement() {
                 onClick={() => {
                   setShowMarkModal(false);
                   setSelectedPerson(null);
+                  setSelectedPathogen('Other');
+                  setMdrNotes('');
                   setSearchQuery('');
                 }}
                 className="btn-secondary"

@@ -192,6 +192,35 @@ collision_settings = CollisionSettings(
 UNKNOWN_REGISTER_MAX_IMAGES = _get_int("UNKNOWN_REGISTER_MAX_IMAGES", 50)
 MDR_ALERT_THRESHOLD_SECONDS = _get_float("MDR_ALERT_THRESHOLD_SECONDS", 300.0)  # 5 minutes
 
+# ============================================
+# MDR Risk Calculation Settings
+# Formula: R = (T * P * V) / D^2
+# ============================================
+
+# Pathogen Factors (P) - Higher values = more dangerous pathogen
+MDR_PATHOGEN_FACTORS = {
+    "MRSA": _get_float("MDR_PATHOGEN_MRSA", 1.2),
+    "MDR-TB": _get_float("MDR_PATHOGEN_MDR_TB", 2.0),
+    "VRE": _get_float("MDR_PATHOGEN_VRE", 1.5),
+    "CRE": _get_float("MDR_PATHOGEN_CRE", 1.8),
+    "ESBL": _get_float("MDR_PATHOGEN_ESBL", 1.3),
+    "Other": _get_float("MDR_PATHOGEN_OTHER", 1.0),
+}
+
+# Vulnerability Factors (V) - Based on mask/PPE status
+MDR_VULNERABILITY_NO_MASK = _get_float("MDR_VULNERABILITY_NO_MASK", 1.0)
+MDR_VULNERABILITY_WITH_MASK = _get_float("MDR_VULNERABILITY_WITH_MASK", 0.3)
+
+# Distance estimation from camera
+MDR_PIXELS_PER_METER = _get_float("MDR_PIXELS_PER_METER", 150.0)
+MDR_MIN_DISTANCE_METERS = _get_float("MDR_MIN_DISTANCE_METERS", 0.5)
+
+# Risk thresholds
+MDR_RISK_LOW_THRESHOLD = _get_float("MDR_RISK_LOW_THRESHOLD", 20.0)
+MDR_RISK_MEDIUM_THRESHOLD = _get_float("MDR_RISK_MEDIUM_THRESHOLD", 40.0)
+MDR_RISK_HIGH_THRESHOLD = _get_float("MDR_RISK_HIGH_THRESHOLD", 60.0)
+MDR_RISK_CRITICAL_THRESHOLD = _get_float("MDR_RISK_CRITICAL_THRESHOLD", 80.0)
+
 __all__ = [
     "register_settings",
     "recognition_settings",

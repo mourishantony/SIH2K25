@@ -44,7 +44,8 @@ export default function RegisterPerson() {
     try {
       const response = await personsAPI.create(personData);
       setCreatedPerson(response.data);
-      toast.success(`${personData.name} registered successfully!`);
+      const personId = response.data.person_id || '';
+      toast.success(`${personData.name} registered successfully! ID: ${personId}`);
       setStep(2);
     } catch (error) {
       const message = error.response?.data?.detail || 'Failed to register person';
@@ -176,10 +177,11 @@ export default function RegisterPerson() {
                   className="input"
                   disabled={saving}
                 >
-                  <option value="patient">Patient</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="visitor">Visitor</option>
-                  <option value="worker">Worker</option>
+                  <option value="patient">Patient (P###)</option>
+                  <option value="doctor">Doctor (D###)</option>
+                  <option value="visitor">Visitor (V###)</option>
+                  <option value="nurse">Nurse (N###)</option>
+                  <option value="worker">Worker (W###)</option>
                 </select>
               </div>
 
@@ -257,6 +259,11 @@ export default function RegisterPerson() {
                 <h2 className="text-lg font-semibold">Capture Face Images</h2>
                 <p className="text-sm text-gray-500">
                   For: <span className="font-medium text-gray-800">{createdPerson?.name}</span>
+                  {createdPerson?.person_id && (
+                    <span className="ml-2 px-2 py-0.5 bg-primary-100 text-primary-700 rounded text-xs font-bold">
+                      {createdPerson.person_id}
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="text-right">

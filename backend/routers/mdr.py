@@ -17,10 +17,42 @@ router = APIRouter()
 class MDRMarkRequest(BaseModel):
     person_name: str
     notes: Optional[str] = None
+    pathogen_type: Optional[str] = "Other"
 
 
 class MDRUpdateRequest(BaseModel):
     notes: Optional[str] = None
+    pathogen_type: Optional[str] = None
+
+
+@router.get("/pathogens")
+async def get_pathogen_types(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get available pathogen types and their factors."""
+    from config import MDR_PATHOGEN_FACTORS
+    
+    pathogens = [
+        {"type": k, "factor": v, "description": _get_pathogen_description(k)}
+        for k, v in MDR_PATHOGEN_FACTORS.items()
+    ]
+    
+    return {
+        "pathogens": pathogens
+    }
+
+
+def _get_pathogen_description(pathogen_type: str) -> str:
+    """Get description for pathogen type."""
+    descriptions = {
+        "MRSA": "Methicillin-resistant Staphylococcus aureus",
+        "MDR-TB": "Multi-drug resistant Tuberculosis",
+        "VRE": "Vancomycin-resistant Enterococci",
+        "CRE": "Carbapenem-resistant Enterobacteriaceae",
+        "ESBL": "Extended-spectrum beta-lactamase producing bacteria",
+        "Other": "Other MDR pathogen",
+    }
+    return descriptions.get(pathogen_type, "Unknown pathogen type")
 
 
 @router.get("/patients")
@@ -91,8 +123,9 @@ async def mark_mdr_patient(
     data: MDRMarkRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Mark a person as MDR patient."""
+    """Mark a person as MDR patient with pathogen type."""
     from mdr_tracker_mongo import mark_as_mdr, is_mdr_patient
+    from config import MDR_PATHOGEN_FACTORS
     
     # Check if person exists
     persons = get_persons_collection()
@@ -111,17 +144,25 @@ async def mark_mdr_patient(
             detail=f"'{data.person_name}' is already marked as MDR patient"
         )
     
+    # Get pathogen factor
+    pathogen_type = data.pathogen_type or "Other"
+    pathogen_factor = MDR_PATHOGEN_FACTORS.get(pathogen_type, 1.0)
+    
     # Mark as MDR
     success = mark_as_mdr(
         data.person_name,
         marked_by=current_user["username"],
-        notes=data.notes or ""
+        notes=data.notes or "",
+        pathogen_type=pathogen_type,
+        pathogen_factor=pathogen_factor,
     )
     
     if success:
         return {
             "message": f"'{data.person_name}' has been marked as MDR patient",
-            "marked_at": datetime.utcnow().isoformat()
+            "marked_at": datetime.utcnow().isoformat(),
+            "pathogen_type": pathogen_type,
+            "pathogen_factor": pathogen_factor,
         }
     else:
         raise HTTPException(

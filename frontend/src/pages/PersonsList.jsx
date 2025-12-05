@@ -90,6 +90,7 @@ export default function PersonsList() {
       patient: 'bg-blue-100 text-blue-800',
       doctor: 'bg-green-100 text-green-800',
       visitor: 'bg-yellow-100 text-yellow-800',
+      nurse: 'bg-pink-100 text-pink-800',
       worker: 'bg-purple-100 text-purple-800'
     };
     return colors[role] || 'bg-gray-100 text-gray-800';
@@ -131,6 +132,7 @@ export default function PersonsList() {
             <option value="patient">Patients</option>
             <option value="doctor">Doctors</option>
             <option value="visitor">Visitors</option>
+            <option value="nurse">Nurses</option>
             <option value="worker">Workers</option>
           </select>
         </div>
@@ -159,6 +161,9 @@ export default function PersonsList() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -181,6 +186,11 @@ export default function PersonsList() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {persons.map((person) => (
                   <tr key={person._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-sm font-mono font-bold">
+                        {person.person_id || '-'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">

@@ -22,6 +22,7 @@ from database import (
     get_unknown_persons_collection,
     get_unknown_contacts_collection,
     get_alerts_collection,
+    generate_person_id,
 )
 
 
@@ -620,9 +621,13 @@ def register_unknown_as_person(
     face_embedding = unknown_doc.get("face_embedding")
     face_snapshot = unknown_doc.get("face_snapshot_base64")
     
+    # Generate auto ID based on role (P001, D001, V001, N001, W001)
+    auto_person_id = generate_person_id(role)
+    
     # Create the new registered person
     now = datetime.utcnow()
     person_doc = {
+        "person_id": auto_person_id,  # Auto-generated ID like P001, D001, etc.
         "name": name,
         "role": role,
         "phone": phone if phone else None,
@@ -637,7 +642,7 @@ def register_unknown_as_person(
         "converted_from_unknown": temp_id,
     }
     person_result = persons_col.insert_one(person_doc)
-    person_id = str(person_result.inserted_id)
+    mongodb_id = str(person_result.inserted_id)
     # Store face embedding if available
     if face_embedding:
         embeddings_col.insert_one({
@@ -688,13 +693,14 @@ def register_unknown_as_person(
     # DELETE the unknown person record (data has been transferred)
     col.delete_one({"temp_id": temp_id})
     
-    rprint(f"[green]Unknown person registered and removed:[/] {temp_id} → {name} ({role})")
+    rprint(f"[green]Unknown person registered and removed:[/] {temp_id} → {name} ({role}) [ID: {auto_person_id}]")
     
     return {
         "success": True,
-        "message": f"Successfully registered {temp_id} as {name}",
+        "message": f"Successfully registered {temp_id} as {name} (ID: {auto_person_id})",
         "temp_id": temp_id,
-        "person_id": person_id,
+        "person_id": auto_person_id,  # Auto-generated ID like P001, D001, etc.
+        "mongodb_id": mongodb_id,  # MongoDB ObjectId
         "person_name": name,
         "role": role,
         "phone": phone,
