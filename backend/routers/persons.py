@@ -339,3 +339,91 @@ async def get_person_contacts(
         "total": len(contacts),
         "contacts": contacts[:limit]
     }
+
+
+@router.get("/{person_id}/risk-scores")
+async def get_person_risk_scores(
+    person_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get cumulative risk scores for a person from all their contacts.
+    
+    Returns bidirectional risk data:
+    - risks_from: Risk this person has accumulated FROM contact with others
+    - risks_to: Risk this person has contributed TO others (not available in current data)
+    """
+    collection = get_persons_collection()
+    
+    try:
+        obj_id = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person ID")
+    
+    person = collection.find_one({"_id": obj_id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    person_name = person["name"]
+    
+    from person_risk_store import get_all_risks_for_person, get_total_risk_for_person
+    
+    # Get all risks FROM other people
+    risks_from_others = get_all_risks_for_person(person_name)
+    total_risk = get_total_risk_for_person(person_name)
+    
+    risks_list = []
+    for other_person, risk_data in risks_from_others.items():
+        risks_list.append({
+            "other_person": other_person,
+            "cumulative_risk": risk_data.cumulative_risk,
+            "risk_percent": risk_data.risk_percent,
+            "contact_count": risk_data.contact_count,
+            "total_duration_seconds": risk_data.total_duration_seconds,
+            "first_contact": risk_data.first_contact.isoformat() if risk_data.first_contact else None,
+            "last_contact": risk_data.last_contact.isoformat() if risk_data.last_contact else None,
+        })
+    
+    # Sort by risk percentage (highest first)
+    risks_list.sort(key=lambda x: x["risk_percent"], reverse=True)
+    
+    return {
+        "person": person_name,
+        "total_risk_percent": min(100.0, total_risk * 100),
+        "contact_count": len(risks_list),
+        "risks": risks_list
+    }
+
+
+@router.get("/by-name/{name}/risk-scores")
+async def get_person_risk_scores_by_name(
+    name: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get cumulative risk scores for a person by name."""
+    from person_risk_store import get_all_risks_for_person, get_total_risk_for_person
+    
+    # Get all risks FROM other people
+    risks_from_others = get_all_risks_for_person(name)
+    total_risk = get_total_risk_for_person(name)
+    
+    risks_list = []
+    for other_person, risk_data in risks_from_others.items():
+        risks_list.append({
+            "other_person": other_person,
+            "cumulative_risk": risk_data.cumulative_risk,
+            "risk_percent": risk_data.risk_percent,
+            "contact_count": risk_data.contact_count,
+            "total_duration_seconds": risk_data.total_duration_seconds,
+            "first_contact": risk_data.first_contact.isoformat() if risk_data.first_contact else None,
+            "last_contact": risk_data.last_contact.isoformat() if risk_data.last_contact else None,
+        })
+    
+    # Sort by risk percentage (highest first)
+    risks_list.sort(key=lambda x: x["risk_percent"], reverse=True)
+    
+    return {
+        "person": name,
+        "total_risk_percent": min(100.0, total_risk * 100),
+        "contact_count": len(risks_list),
+        "risks": risks_list
+    }

@@ -28,6 +28,7 @@ from email_alerter_mongo import EmailAlerterMongo as EmailAlerter, MDRContactAle
 from face_db_mongo import flatten_registry, load_facebank
 from mask_classifier import MaskClassifier
 from mdr_tracker_mongo import is_mdr_patient, get_mdr_patients as load_mdr_patients
+from person_risk_store import get_bidirectional_risks, update_bidirectional_risks
 from reid_tracker import PersonTracker, TrackInfo
 from ui_utils import pick_video_file
 from vision import get_analyzer
@@ -68,10 +69,16 @@ class FrameResult:
 
 @dataclass
 class PairState:
-    cumulative: float = 0.0
+    cumulative: float = 0.0  # Legacy field for compatibility
     active: bool = False
     start_iso: Optional[str] = None
     end_iso: Optional[str] = None
+    # Bidirectional cumulative risk tracking
+    # person_a and person_b are set when contact starts (sorted alphabetically from pair)
+    person_a: Optional[str] = None
+    person_b: Optional[str] = None
+    cumulative_risk_a: float = 0.0  # person_a's risk due to contact with person_b
+    cumulative_risk_b: float = 0.0  # person_b's risk due to contact with person_a
     # MDR tracking fields
     involves_mdr: bool = False
     mdr_patient: Optional[str] = None
@@ -713,9 +720,23 @@ def monitor_contacts(
                 if not state.active:
                     delta_risk += event_penalty
                     state.active = True
-                    state.cumulative = 0.0
                     state.start_iso = timestamp_iso
                     state.start_timestamp = time.time()
+                    
+                    # Initialize bidirectional risk tracking with existing cumulative risks
+                    # pair is already sorted alphabetically, so pair[0] < pair[1]
+                    state.person_a = pair[0]
+                    state.person_b = pair[1]
+                    
+                    # Load existing cumulative risks from database
+                    existing_risk_a, existing_risk_b = get_bidirectional_risks(pair[0], pair[1])
+                    state.cumulative_risk_a = existing_risk_a
+                    state.cumulative_risk_b = existing_risk_b
+                    state.cumulative = (existing_risk_a + existing_risk_b) / 2.0  # Legacy compatibility
+                    
+                    if existing_risk_a > 0 or existing_risk_b > 0:
+                        rprint(f"[cyan]📊 Resuming contact {pair[0]} ↔ {pair[1]}:[/] "
+                               f"A's risk={existing_risk_a*100:.1f}%, B's risk={existing_risk_b*100:.1f}%")
                     
                     # Check if this pair involves an MDR patient
                     if pair[0] in mdr_patients:
@@ -768,7 +789,11 @@ def monitor_contacts(
                                 unknown_tracker.log_contact_start(tid, pair[0], now)
                                 break
                 
-                state.cumulative += delta_risk
+                # Update bidirectional cumulative risks
+                # Both persons accumulate risk from each other
+                state.cumulative_risk_a += delta_risk
+                state.cumulative_risk_b += delta_risk
+                state.cumulative = (state.cumulative_risk_a + state.cumulative_risk_b) / 2.0  # Legacy
                 state.end_iso = timestamp_iso
                 
                 # Update mask status for the pair
@@ -848,9 +873,22 @@ def monitor_contacts(
             inactive_pairs = set(pair_states.keys()) - confirmed_pairs
             for pair in list(inactive_pairs):
                 state = pair_states[pair]
-                if state.active and state.start_iso and state.end_iso and state.cumulative > 0:
+                if state.active and state.start_iso and state.end_iso and (state.cumulative_risk_a > 0 or state.cumulative_risk_b > 0):
                     # Calculate contact duration
                     contact_duration = time.time() - state.start_timestamp
+                    
+                    # Save cumulative risks to database (always, even for short contacts)
+                    # This ensures risk accumulates across sessions
+                    if state.person_a and state.person_b:
+                        updated_risk_a, updated_risk_b = update_bidirectional_risks(
+                            state.person_a,
+                            state.person_b,
+                            state.cumulative_risk_a,
+                            state.cumulative_risk_b,
+                            contact_duration,
+                        )
+                        rprint(f"[green]✓ Saved risks:[/] {state.person_a}={updated_risk_a*100:.1f}%, "
+                               f"{state.person_b}={updated_risk_b*100:.1f}%")
                     
                     # Only log contacts if duration exceeds threshold
                     if contact_duration >= mdr_alert_threshold_seconds:
@@ -874,19 +912,31 @@ def monitor_contacts(
                                 side_snapshot=side_result.frame.copy() if side_result else None,
                             )
                         
-                        # Log contact with MDR risk data if applicable
-                        for a, b in (pair, pair[::-1]):
-                            ledger.log_incident(
-                                a,
-                                b,
-                                start_time=state.start_iso,
-                                end_time=state.end_iso,
-                                cumulative_risk=state.cumulative,
-                                mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
-                                pathogen_type=state.pathogen_type if state.involves_mdr else None,
-                                pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
-                                is_mdr_contact=state.involves_mdr,
-                            )
+                        # Log contact with bidirectional risk data
+                        # Person A's entry: their risk due to B
+                        ledger.log_incident(
+                            state.person_a,
+                            state.person_b,
+                            start_time=state.start_iso,
+                            end_time=state.end_iso,
+                            cumulative_risk=state.cumulative_risk_a,
+                            mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
+                            pathogen_type=state.pathogen_type if state.involves_mdr else None,
+                            pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
+                            is_mdr_contact=state.involves_mdr,
+                        )
+                        # Person B's entry: their risk due to A
+                        ledger.log_incident(
+                            state.person_b,
+                            state.person_a,
+                            start_time=state.start_iso,
+                            end_time=state.end_iso,
+                            cumulative_risk=state.cumulative_risk_b,
+                            mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
+                            pathogen_type=state.pathogen_type if state.involves_mdr else None,
+                            pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
+                            is_mdr_contact=state.involves_mdr,
+                        )
                     else:
                         rprint(f"[dim]Contact {pair[0]} ↔ {pair[1]} duration {contact_duration:.1f}s < threshold {mdr_alert_threshold_seconds}s, not logged[/]")
                 pair_states.pop(pair, None)
@@ -962,9 +1012,21 @@ def _flush_active_pairs(
     mdr_alert_threshold_seconds: float = 300.0,
 ) -> None:
     for pair, state in list(pair_states.items()):
-        if state.active and state.start_iso and state.end_iso and state.cumulative > 0:
+        if state.active and state.start_iso and state.end_iso and (state.cumulative_risk_a > 0 or state.cumulative_risk_b > 0):
             # Calculate contact duration
             contact_duration = time.time() - state.start_timestamp if state.start_timestamp > 0 else 0.0
+            
+            # Always save cumulative risks to database (so they persist across sessions)
+            if state.person_a and state.person_b:
+                updated_risk_a, updated_risk_b = update_bidirectional_risks(
+                    state.person_a,
+                    state.person_b,
+                    state.cumulative_risk_a,
+                    state.cumulative_risk_b,
+                    contact_duration,
+                )
+                rprint(f"[green]✓ Flushed risks:[/] {state.person_a}={updated_risk_a*100:.1f}%, "
+                       f"{state.person_b}={updated_risk_b*100:.1f}%")
             
             # Only log contacts if duration exceeds threshold
             if contact_duration >= mdr_alert_threshold_seconds:
@@ -976,13 +1038,27 @@ def _flush_active_pairs(
                         email_alerter,
                         mdr_alert_threshold_seconds,
                     )
-                for a, b in (pair, pair[::-1]):
+                # Log bidirectional contacts
+                if state.person_a and state.person_b:
+                    # Person A's entry
                     ledger.log_incident(
-                        a,
-                        b,
+                        state.person_a,
+                        state.person_b,
                         start_time=state.start_iso,
                         end_time=state.end_iso,
-                        cumulative_risk=state.cumulative,
+                        cumulative_risk=state.cumulative_risk_a,
+                        mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
+                        pathogen_type=state.pathogen_type if state.involves_mdr else None,
+                        pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
+                        is_mdr_contact=state.involves_mdr,
+                    )
+                    # Person B's entry
+                    ledger.log_incident(
+                        state.person_b,
+                        state.person_a,
+                        start_time=state.start_iso,
+                        end_time=state.end_iso,
+                        cumulative_risk=state.cumulative_risk_b,
                         mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
                         pathogen_type=state.pathogen_type if state.involves_mdr else None,
                         pathogen_factor=state.pathogen_factor if state.involves_mdr else None,
@@ -996,22 +1072,25 @@ def _flush_active_pairs(
 def _draw_risk_overlay(frame: np.ndarray, pair_states: Dict[Tuple[str, str], PairState]) -> None:
     """Draw risk overlay on the combined frame showing active contacts and risk levels."""
     entries = [
-        (pair[0], pair[1], state.cumulative, state.active, state.involves_mdr, 
+        (pair[0], pair[1], state.cumulative_risk_a, state.cumulative_risk_b, state.active, state.involves_mdr, 
          state.mdr_patient, state.mdr_risk_score, state.pathogen_type, state.pathogen_factor) 
-        for pair, state in pair_states.items() if state.cumulative > 0
+        for pair, state in pair_states.items() if state.cumulative_risk_a > 0 or state.cumulative_risk_b > 0
     ]
-    entries.sort(key=lambda item: (item[4], item[2]), reverse=True)  # Sort by MDR first, then cumulative
+    entries.sort(key=lambda item: (item[5], item[2]+item[3]), reverse=True)  # Sort by MDR first, then total cumulative
     
     y_offset = 60  # Start below the Front/Side labels
     
-    for idx, (person_a, person_b, cumulative, active, involves_mdr, mdr_patient, 
+    for idx, (person_a, person_b, risk_a, risk_b, active, involves_mdr, mdr_patient, 
               mdr_risk_score, pathogen_type, pathogen_factor) in enumerate(entries[:6]):
-        risk_percent = min(cumulative * 100, 100)
+        # Display both persons' risk percentages
+        risk_percent_a = min(risk_a * 100, 100)
+        risk_percent_b = min(risk_b * 100, 100)
+        avg_risk = (risk_percent_a + risk_percent_b) / 2.0  # Average for color calculation
         
         # Choose colors based on MDR status and risk level
         if involves_mdr:
             # Use MDR risk score for display if available
-            display_risk = mdr_risk_score if mdr_risk_score > 0 else risk_percent
+            display_risk = mdr_risk_score if mdr_risk_score > 0 else avg_risk
             
             # Color based on MDR risk level
             if display_risk >= 80:
@@ -1028,22 +1107,22 @@ def _draw_risk_overlay(frame: np.ndarray, pair_states: Dict[Tuple[str, str], Pai
                 bg_color = (0, 150, 150)
             
             prefix = f"🚨 MDR [{pathogen_type}]: "
-            text = f"{prefix}{person_a} ↔ {person_b}: {display_risk:.1f}%{'*' if active else ''}"
-        elif risk_percent >= 40:
+            text = f"{prefix}{person_a}:{risk_percent_a:.1f}% ↔ {person_b}:{risk_percent_b:.1f}%{'*' if active else ''}"
+        elif avg_risk >= 40:
             color = (0, 165, 255)  # Orange
             bg_color = (0, 100, 150)
             prefix = "⚠ HIGH RISK: "
-            text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
+            text = f"{prefix}{person_a}:{risk_percent_a:.1f}% ↔ {person_b}:{risk_percent_b:.1f}%{'*' if active else ''}"
         elif active:
             color = (0, 255, 255)  # Yellow
             bg_color = (0, 150, 150)
             prefix = ""
-            text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
+            text = f"{person_a}:{risk_percent_a:.1f}% ↔ {person_b}:{risk_percent_b:.1f}%{'*' if active else ''}"
         else:
             color = (200, 200, 200)  # Gray
             bg_color = (100, 100, 100)
             prefix = ""
-            text = f"{prefix}{person_a} ↔ {person_b}: {risk_percent:.1f}%{'*' if active else ''}"
+            text = f"{person_a}:{risk_percent_a:.1f}% ↔ {person_b}:{risk_percent_b:.1f}%{'*' if active else ''}"
         
         # Get text size for background
         (text_w, text_h), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)

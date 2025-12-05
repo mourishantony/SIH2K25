@@ -147,6 +147,11 @@ def get_unknown_contacts_collection() -> Collection:
     return get_database()["unknown_contacts"]
 
 
+def get_person_risk_scores_collection() -> Collection:
+    """Get person risk scores collection for tracking cumulative risk between person pairs."""
+    return get_database()["person_risk_scores"]
+
+
 def init_indexes():
     """Initialize database indexes for better performance."""
     try:
@@ -206,6 +211,12 @@ def init_indexes():
         unknown_contacts.create_index("registered_person")
         unknown_contacts.create_index("timestamp")
         unknown_contacts.create_index([("unknown_temp_id", ASCENDING), ("registered_person", ASCENDING)])
+        
+        # Person risk scores indexes (cumulative bidirectional risk)
+        person_risk_scores = get_person_risk_scores_collection()
+        person_risk_scores.create_index("person")
+        person_risk_scores.create_index("other_person")
+        person_risk_scores.create_index([("person", ASCENDING), ("other_person", ASCENDING)], unique=True)
     except Exception as e:
         print(f"[DB] Warning creating indexes (may already exist): {e}")
 
@@ -267,5 +278,6 @@ __all__ = [
     "get_contacts_collection",
     "get_alerts_collection",
     "get_collision_alerts_collection",
+    "get_person_risk_scores_collection",
     "initialize_database",
 ]
