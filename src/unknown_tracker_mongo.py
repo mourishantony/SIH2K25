@@ -26,6 +26,79 @@ from database import (
 )
 
 
+# Minimum face quality thresholds
+MIN_FACE_BLUR_THRESHOLD = 100.0  # Laplacian variance threshold (higher = sharper)
+MIN_FACE_SIZE = 40  # Minimum face size in pixels (width or height)
+MIN_FACE_DETECTION_SCORE = 0.5  # Minimum detection confidence
+
+
+def calculate_blur_score(image: np.ndarray) -> float:
+    """Calculate blur score using Laplacian variance.
+    
+    Higher score = sharper/clearer image
+    Lower score = blurrier image
+    
+    Args:
+        image: BGR or grayscale image
+        
+    Returns:
+        Laplacian variance (blur score). Higher is better.
+    """
+    if image is None or image.size == 0:
+        return 0.0
+    
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+    
+    # Calculate Laplacian variance
+    laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+    variance = laplacian.var()
+    
+    return float(variance)
+
+
+def is_face_quality_acceptable(
+    face_crop: Optional[np.ndarray],
+    face_score: float,
+    min_blur_threshold: float = MIN_FACE_BLUR_THRESHOLD,
+    min_face_size: int = MIN_FACE_SIZE,
+    min_detection_score: float = MIN_FACE_DETECTION_SCORE,
+) -> Tuple[bool, str]:
+    """Check if face quality is acceptable for unknown person registration.
+    
+    Args:
+        face_crop: Face image crop
+        face_score: Face detection confidence score
+        min_blur_threshold: Minimum blur score (Laplacian variance)
+        min_face_size: Minimum face size in pixels
+        min_detection_score: Minimum detection confidence
+        
+    Returns:
+        Tuple of (is_acceptable, reason)
+    """
+    if face_crop is None or face_crop.size == 0:
+        return False, "no_face_crop"
+    
+    # Check detection score
+    if face_score < min_detection_score:
+        return False, f"low_detection_score:{face_score:.2f}<{min_detection_score}"
+    
+    # Check face size
+    h, w = face_crop.shape[:2]
+    if w < min_face_size or h < min_face_size:
+        return False, f"face_too_small:{w}x{h}<{min_face_size}"
+    
+    # Check blur score
+    blur_score = calculate_blur_score(face_crop)
+    if blur_score < min_blur_threshold:
+        return False, f"too_blurry:{blur_score:.1f}<{min_blur_threshold}"
+    
+    return True, f"ok:blur={blur_score:.1f},size={w}x{h},score={face_score:.2f}"
+
+
 @dataclass
 class UnknownPersonState:
     """Track state of an unknown person during monitoring session."""
@@ -104,8 +177,10 @@ class UnknownPersonTracker:
         face_score: float,
         face_embedding: Optional[np.ndarray],
         monotonic_timestamp: float,
-    ) -> UnknownPersonState:
+    ) -> Optional[UnknownPersonState]:
         """Register or update an unknown person.
+        
+        Only registers unknown persons with clear, non-blurry face images.
         
         Args:
             track_id: Track ID from object tracker
@@ -113,6 +188,9 @@ class UnknownPersonTracker:
             face_score: Face detection confidence score
             face_embedding: Face embedding vector
             monotonic_timestamp: time.monotonic() value for duration calculations
+            
+        Returns:
+            UnknownPersonState if registered/updated, None if face quality is too low
         """
         unix_now = time.time()  # Always use current Unix time for storage
         
@@ -122,14 +200,22 @@ class UnknownPersonTracker:
             state.last_seen = unix_now
             state.last_seen_monotonic = monotonic_timestamp
             
-            # Update face snapshot if better quality
+            # Update face snapshot if better quality AND acceptable quality
             if face_crop is not None and face_score > state.best_face_score:
-                state.best_face_snapshot = face_crop.copy()
-                state.best_face_score = face_score
-                if face_embedding is not None:
-                    state.face_embedding = face_embedding.copy()
+                is_acceptable, reason = is_face_quality_acceptable(face_crop, face_score)
+                if is_acceptable:
+                    state.best_face_snapshot = face_crop.copy()
+                    state.best_face_score = face_score
+                    if face_embedding is not None:
+                        state.face_embedding = face_embedding.copy()
             
             return state
+        
+        # Check face quality BEFORE creating new unknown
+        is_acceptable, reason = is_face_quality_acceptable(face_crop, face_score)
+        if not is_acceptable:
+            # Face quality too low - don't register as unknown
+            return None
         
         # Try to match to existing unknown by embedding
         if face_embedding is not None:
@@ -151,8 +237,9 @@ class UnknownPersonTracker:
                 self._active_unknowns[track_id] = state
                 return state
         
-        # Create new unknown person
+        # Create new unknown person (face quality already verified above)
         temp_id = self._generate_temp_id()
+        blur_score = calculate_blur_score(face_crop)
         state = UnknownPersonState(
             temp_id=temp_id,
             first_seen=unix_now,
@@ -166,7 +253,7 @@ class UnknownPersonTracker:
         )
         self._active_unknowns[track_id] = state
         
-        rprint(f"[cyan]New unknown person detected:[/] {temp_id}")
+        rprint(f"[cyan]New unknown person detected:[/] {temp_id} (blur={blur_score:.1f}, score={face_score:.2f})")
         return state
     
     def get_unknown_by_track(self, track_id: int) -> Optional[UnknownPersonState]:

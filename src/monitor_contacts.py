@@ -4,7 +4,7 @@ import math
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -12,6 +12,17 @@ import cv2
 import numpy as np
 import typer
 from rich import print as rprint
+
+
+def get_local_timestamp_iso() -> str:
+    """Get current local timestamp in ISO format with timezone offset.
+    
+    Uses the system's local timezone instead of UTC.
+    """
+    # Get local time with timezone info
+    local_now = datetime.now().astimezone()
+    return local_now.isoformat()
+
 
 # MongoDB-based modules (use these for web integration)
 from alert_system_mongo import AlertSystemMongo as AlertSystem
@@ -188,7 +199,7 @@ class ViewPipeline:
                     if face_crop.size > 0:
                         unknown_track_faces[matched.track_id] = (face_crop, face.det_score, embedding)
                     
-                    # Register or update unknown person
+                    # Register or update unknown person (returns None if face quality is too low)
                     state = unknown_tracker.register_unknown(
                         track_id=matched.track_id,
                         face_crop=face_crop if face_crop.size > 0 else None,
@@ -197,24 +208,37 @@ class ViewPipeline:
                         monotonic_timestamp=timestamp,
                     )
                     
-                    # Use temp_id as the identity for tracking
-                    temp_id = state.temp_id
-                    self.track_identities[matched.track_id] = temp_id
-                    
-                    # Draw with temp_id
-                    cv2.putText(
-                        frame,
-                        f"{temp_id} {score:.2f}",
-                        (x1, max(y1 - 10, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 100, 255),  # Orange-red for unknown
-                        2,
-                    )
-                    
-                    # Use track bbox if available, otherwise estimate from face
-                    body_box = (matched.bbox[0], matched.bbox[1], matched.bbox[2], matched.bbox[3])
-                    recognized_faces[temp_id] = body_box
+                    # Only track if face quality was acceptable
+                    if state is not None:
+                        # Use temp_id as the identity for tracking
+                        temp_id = state.temp_id
+                        self.track_identities[matched.track_id] = temp_id
+                        
+                        # Draw with temp_id
+                        cv2.putText(
+                            frame,
+                            f"{temp_id} {score:.2f}",
+                            (x1, max(y1 - 10, 20)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (0, 100, 255),  # Orange-red for unknown
+                            2,
+                        )
+                        
+                        # Use track bbox if available, otherwise estimate from face
+                        body_box = (matched.bbox[0], matched.bbox[1], matched.bbox[2], matched.bbox[3])
+                        recognized_faces[temp_id] = body_box
+                    else:
+                        # Face quality too low (blurry) - don't register as unknown
+                        cv2.putText(
+                            frame,
+                            f"Blurry {score:.2f}",
+                            (x1, max(y1 - 10, 20)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (128, 128, 128),  # Gray for blurry faces
+                            2,
+                        )
                 else:
                     cv2.putText(
                         frame,
@@ -483,7 +507,7 @@ def _check_mdr_alert(
         alert = MDRContactAlert(
             mdr_patient=state.mdr_patient or "",
             contacted_person=state.other_person or "",
-            contact_start=state.start_iso or datetime.now(timezone.utc).isoformat(),
+            contact_start=state.start_iso or get_local_timestamp_iso(),
             contact_end=None,  # Still ongoing
             duration_seconds=duration_seconds,
             risk_percent=min(state.cumulative * 100, 100),
@@ -513,8 +537,8 @@ def _send_mdr_completion_alert(
         alert = MDRContactAlert(
             mdr_patient=state.mdr_patient or "",
             contacted_person=state.other_person or "",
-            contact_start=state.start_iso or datetime.now(timezone.utc).isoformat(),
-            contact_end=state.end_iso or datetime.now(timezone.utc).isoformat(),
+            contact_start=state.start_iso or get_local_timestamp_iso(),
+            contact_end=state.end_iso or get_local_timestamp_iso(),
             duration_seconds=duration_seconds,
             risk_percent=min(state.cumulative * 100, 100),
             front_snapshot=None,  # No frames available at contact end
@@ -706,7 +730,7 @@ def monitor_contacts(
             else:
                 confirmed_pairs = set(recent_front.keys()).union(recent_side.keys())
 
-            timestamp_iso = datetime.now(timezone.utc).isoformat()
+            timestamp_iso = get_local_timestamp_iso()
             
             # Get list of all registered person names for identifying unknown contacts
             registered_names = set(names)

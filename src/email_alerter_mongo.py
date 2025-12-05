@@ -270,6 +270,7 @@ class EmailAlerterMongo:
                 "max_risk": {"$max": "$risk_percent"},
                 "first_contact": {"$min": "$created_at"},
                 "last_contact": {"$max": "$created_at"},
+                "last_contact_start": {"$last": "$contact_start"},  # Use contact_start (local time)
                 "last_id": {"$last": "$_id"},
                 "any_email_sent": {"$max": {"$cond": ["$email_sent", 1, 0]}},
                 "any_unread": {"$max": {"$cond": [{"$eq": ["$read", False]}, 1, 0]}},
@@ -284,6 +285,8 @@ class EmailAlerterMongo:
         
         alerts = []
         for doc in self.collection.aggregate(pipeline):
+            # Use contact_start (local time) for display, fallback to created_at
+            display_timestamp = doc.get("last_contact_start") or doc["last_contact"]
             alerts.append({
                 "id": str(doc["last_id"]),
                 "mdr_patient": doc["_id"]["mdr_patient"],
@@ -294,7 +297,7 @@ class EmailAlerterMongo:
                 "risk_percent": round(doc["max_risk"], 1),
                 "first_contact": doc["first_contact"],
                 "created_at": doc["last_contact"],
-                "timestamp": doc["last_contact"],
+                "timestamp": display_timestamp,  # Use local time from contact_start
                 "is_read": doc["any_unread"] == 0,
                 "read": doc["any_unread"] == 0,
                 "email_sent": doc["any_email_sent"] == 1,
@@ -313,6 +316,7 @@ class EmailAlerterMongo:
                 "total_duration": {"$sum": "$duration_seconds"},
                 "max_risk": {"$max": "$risk_percent"},
                 "last_contact": {"$max": "$created_at"},
+                "last_contact_start": {"$last": "$contact_start"},  # Use contact_start (local time)
                 "last_id": {"$last": "$_id"}
             }},
             {"$sort": {"last_contact": -1}}
@@ -320,6 +324,8 @@ class EmailAlerterMongo:
         
         alerts = []
         for doc in self.collection.aggregate(pipeline):
+            # Use contact_start (local time) for display, fallback to created_at
+            display_timestamp = doc.get("last_contact_start") or doc["last_contact"]
             alerts.append({
                 "id": str(doc["last_id"]),
                 "mdr_patient": doc["_id"]["mdr_patient"],
@@ -329,7 +335,7 @@ class EmailAlerterMongo:
                 "duration_minutes": round(doc["total_duration"] / 60.0, 2),
                 "risk_percent": round(doc["max_risk"], 1),
                 "created_at": doc["last_contact"],
-                "timestamp": doc["last_contact"],
+                "timestamp": display_timestamp,  # Use local time from contact_start
                 "is_read": False,
                 "read": False
             })
@@ -382,6 +388,9 @@ class EmailAlerterMongo:
         if not doc:
             return None
         
+        # Use contact_start for display timestamp (local time)
+        display_timestamp = doc.get("contact_start") or doc["created_at"]
+        
         return {
             "id": str(doc["_id"]),
             "mdr_patient": doc["mdr_patient"],
@@ -393,6 +402,7 @@ class EmailAlerterMongo:
             "risk_percent": doc["risk_percent"],
             "status": doc.get("status", "completed"),
             "created_at": doc["created_at"],
+            "timestamp": display_timestamp,  # Use local time from contact_start
             "read": doc.get("read", False),
             "email_sent": doc.get("email_sent", False),
             "front_snapshot_base64": doc.get("front_snapshot_base64"),
