@@ -163,4 +163,73 @@ export const unknownAPI = {
     api.get('/unknown/settings'),
 };
 
+// Monitoring API
+export const monitoringAPI = {
+  // Video management
+  uploadVideo: (file, videoType = 'front', onUploadProgress) => {
+    const formData = new FormData();
+    formData.append('video_file', file);
+    formData.append('video_type', videoType);
+    return api.post('/monitoring/upload-video', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress,
+    });
+  },
+  listVideos: () => 
+    api.get('/monitoring/uploaded-videos'),
+  deleteVideo: (filename) => 
+    api.delete(`/monitoring/uploaded-videos/${filename}`),
+  
+  // Session management
+  getStatus: () =>
+    api.get('/monitoring/status'),
+  startMonitoring: (config) => 
+    api.post('/monitoring/start', config),
+  stopMonitoring: () => 
+    api.post('/monitoring/stop'),
+  getConfig: () =>
+    api.get('/monitoring/config'),
+  
+  // Get WebSocket URL for frame streaming (no session ID needed - single session)
+  getWebSocketUrl: () => {
+    // In development, connect directly to backend server
+    // In production, use same host as the page
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      return 'ws://localhost:8000/api/monitoring/ws';
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/api/monitoring/ws`;
+  },
+};
+
+// User Management API (Admin only)
+export const usersAPI = {
+  getAll: () => 
+    api.get('/auth/users'),
+  create: (userData) => 
+    api.post('/auth/users', userData),
+  update: (userId, userData) => 
+    api.put(`/auth/users/${userId}`, userData),
+  delete: (userId) => 
+    api.delete(`/auth/users/${userId}`),
+  getRoles: () => 
+    api.get('/auth/roles'),
+};
+
+// Pathogen Management API (EHR Users)
+export const pathogensAPI = {
+  getAll: () => 
+    api.get('/pathogens/'),
+  getByName: (name) => 
+    api.get(`/pathogens/${name}`),
+  create: (data) => 
+    api.post('/pathogens/', data),
+  update: (name, data) => 
+    api.put(`/pathogens/${name}`, data),
+  delete: (name) => 
+    api.delete(`/pathogens/${name}`),
+};
+
 export default api;

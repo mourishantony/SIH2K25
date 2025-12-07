@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from bson import ObjectId
 
 from database import get_persons_collection, get_face_embeddings_collection, get_mdr_patients_collection, generate_person_id
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_permission
 
 router = APIRouter()
 

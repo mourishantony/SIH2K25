@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { alertsAPI } from '../api';
 import { 
   AlertTriangle, Bell, Check, CheckCheck, Eye, 
-  Calendar, User, Filter, RefreshCw, Mail, Image
+  Calendar, User, Users, Filter, RefreshCw, Mail, Image
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -145,48 +145,88 @@ export default function Alerts() {
               key={alert.id || alert._id}
               className={`card transition-all ${
                 !alert.is_read 
-                  ? 'border-l-4 border-l-danger-500 bg-danger-50/30' 
+                  ? alert.alert_type === 'mdr_marked' 
+                    ? 'border-l-4 border-l-purple-500 bg-purple-50/30'
+                    : 'border-l-4 border-l-danger-500 bg-danger-50/30' 
                   : 'hover:shadow-md'
               }`}
             >
               <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-full ${
-                  !alert.is_read ? 'bg-danger-100' : 'bg-gray-100'
+                  alert.alert_type === 'mdr_marked'
+                    ? (!alert.is_read ? 'bg-purple-100' : 'bg-gray-100')
+                    : (!alert.is_read ? 'bg-danger-100' : 'bg-gray-100')
                 }`}>
-                  <AlertTriangle className={`h-6 w-6 ${
-                    !alert.is_read ? 'text-danger-600' : 'text-gray-500'
-                  }`} />
+                  {alert.alert_type === 'mdr_marked' ? (
+                    <Users className={`h-6 w-6 ${!alert.is_read ? 'text-purple-600' : 'text-gray-500'}`} />
+                  ) : (
+                    <AlertTriangle className={`h-6 w-6 ${!alert.is_read ? 'text-danger-600' : 'text-gray-500'}`} />
+                  )}
                 </div>
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h3 className={`font-semibold ${!alert.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
-                        MDR Contact Detected
-                      </h3>
-                      <p className="text-gray-600 mt-1">
-                        <span className="font-medium text-danger-600">{alert.mdr_patient}</span>
-                        {' came in contact with '}
-                        <span className="font-medium">{alert.contacted_person || alert.contact_name || 'Unknown'}</span>
-                      </p>
-                    </div>
-                    <div className="text-right text-sm text-gray-500 whitespace-nowrap">
-                      {(alert.timestamp || alert.created_at) && (
+                      {alert.alert_type === 'mdr_marked' ? (
                         <>
-                          <div>{format(new Date(alert.timestamp || alert.created_at), 'MMM d, HH:mm')}</div>
-                          <div className="text-xs">
-                            {formatDistanceToNow(new Date(alert.timestamp || alert.created_at), { addSuffix: true })}
-                          </div>
+                          <h3 className={`font-semibold ${!alert.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
+                            New MDR Patient Marked
+                          </h3>
+                          <p className="text-gray-600 mt-1">
+                            <span className="font-medium text-purple-600">{alert.mdr_patient}</span>
+                            {' was marked as MDR positive'}
+                            {alert.pathogen_type && (
+                              <span className="text-danger-600"> ({alert.pathogen_type})</span>
+                            )}
+                            {alert.past_contacts && alert.past_contacts.length > 0 && (
+                              <span className="text-orange-600"> • {alert.past_contacts.length} past contacts</span>
+                            )}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className={`font-semibold ${!alert.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
+                            MDR Contact Detected
+                          </h3>
+                          <p className="text-gray-600 mt-1">
+                            <span className="font-medium text-danger-600">{alert.mdr_patient}</span>
+                            {' came in contact with '}
+                            <span className="font-medium">{alert.contacted_person || alert.contact_name || 'Unknown'}</span>
+                          </p>
                         </>
                       )}
+                    </div>
+                    <div className="text-right text-sm text-gray-500 whitespace-nowrap">
+                      {(() => {
+                        // Use timestamp (when alert was created/triggered)
+                        const displayTime = alert.timestamp || alert.created_at;
+                        if (!displayTime) return null;
+                        return (
+                          <>
+                            <div>{format(new Date(displayTime), 'MMM d, HH:mm')}</div>
+                            <div className="text-xs">
+                              {formatDistanceToNow(new Date(displayTime), { addSuffix: true })}
+                            </div>
+                            {alert.alert_type === 'mdr_contact' && (
+                              <div className="text-xs text-red-600 font-medium">Live Alert</div>
+                            )}
+                            {alert.alert_type === 'mdr_marked' && (
+                              <div className="text-xs text-purple-600 font-medium">MDR Marked</div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                    {alert.duration_seconds && (
+                    {alert.alert_type === 'mdr_marked' && alert.marked_by && (
+                      <span>Marked by: {alert.marked_by}</span>
+                    )}
+                    {alert.duration_seconds > 0 && (
                       <span>Duration: {Math.round(alert.duration_seconds)}s</span>
                     )}
-                    {alert.risk_percent !== undefined && (
+                    {alert.risk_percent !== undefined && alert.risk_percent > 0 && (
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         alert.risk_percent >= 40 
                           ? 'bg-red-100 text-red-800' 
@@ -247,8 +287,17 @@ export default function Alerts() {
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fadeIn">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-danger-500" />
-                Alert Details
+                {selectedAlert.alert_type === 'mdr_marked' ? (
+                  <>
+                    <Users className="h-5 w-5 text-purple-500" />
+                    MDR Patient Marked
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-5 w-5 text-danger-500" />
+                    Alert Details
+                  </>
+                )}
               </h3>
               <button 
                 onClick={() => setSelectedAlert(null)}
@@ -259,115 +308,256 @@ export default function Alerts() {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Persons Involved */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <p className="text-xs text-red-600 uppercase font-medium mb-2">MDR Patient</p>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <User className="h-5 w-5 text-red-600" />
+              {/* MDR Marked Alert Content */}
+              {selectedAlert.alert_type === 'mdr_marked' ? (
+                <>
+                  {/* Patient Info */}
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <p className="text-xs text-purple-600 uppercase font-medium mb-2">MDR Patient</p>
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                        <User className="h-6 w-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-lg text-gray-900">{selectedAlert.mdr_patient}</span>
+                        {selectedAlert.pathogen_type && (
+                          <p className="text-danger-600 font-medium">{selectedAlert.pathogen_type}</p>
+                        )}
+                      </div>
                     </div>
-                    <span className="font-medium text-gray-900">{selectedAlert.mdr_patient}</span>
                   </div>
-                </div>
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-blue-600 uppercase font-medium mb-2">Contact Person</p>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <User className="h-5 w-5 text-blue-600" />
+
+                  {/* Details */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Alert Type</span>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded font-medium text-sm">
+                        MDR Patient Marked
+                      </span>
                     </div>
-                    <span className="font-medium text-gray-900">{selectedAlert.contacted_person || selectedAlert.contact_name || 'Unknown'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Risk Assessment */}
-              <div className={`p-4 rounded-lg border-2 ${
-                (selectedAlert.risk_percent || 0) >= 40 
-                  ? 'border-red-300 bg-red-50' 
-                  : (selectedAlert.risk_percent || 0) >= 20 
-                    ? 'border-yellow-300 bg-yellow-50'
-                    : 'border-green-300 bg-green-50'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Risk Factor</p>
-                    <p className={`text-2xl font-bold ${
-                      (selectedAlert.risk_percent || 0) >= 40 
-                        ? 'text-red-600' 
-                        : (selectedAlert.risk_percent || 0) >= 20 
-                          ? 'text-yellow-600'
-                          : 'text-green-600'
-                    }`}>
-                      {(selectedAlert.risk_percent || 0).toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    (selectedAlert.risk_percent || 0) >= 40 
-                      ? 'bg-red-100 text-red-800' 
-                      : (selectedAlert.risk_percent || 0) >= 20 
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-green-100 text-green-800'
-                  }`}>
-                    {(selectedAlert.risk_percent || 0) >= 40 ? 'High Risk' : (selectedAlert.risk_percent || 0) >= 20 ? 'Medium Risk' : 'Low Risk'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Timestamp</span>
-                  <span className="font-medium">
-                    {(selectedAlert.timestamp || selectedAlert.created_at)
-                      ? format(new Date(selectedAlert.timestamp || selectedAlert.created_at), 'MMMM d, yyyy HH:mm:ss')
-                      : 'N/A'
-                    }
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Contact Duration</span>
-                  <span className="font-medium">
-                    {selectedAlert.duration_seconds 
-                      ? `${Math.round(selectedAlert.duration_seconds)} seconds` 
-                      : 'N/A'
-                    }
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Total Interactions</span>
-                  <span className="font-medium">
-                    {selectedAlert.contact_count ? `${selectedAlert.contact_count} contacts` : '1 contact'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Email Notification</span>
-                  <span className={`flex items-center gap-1 ${
-                    selectedAlert.email_sent ? 'text-green-600' : 'text-gray-400'
-                  }`}>
-                    <Mail className="h-4 w-4" />
-                    {selectedAlert.email_sent ? 'Sent' : 'Not sent'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Status</span>
-                  <span className={`flex items-center gap-1 ${
-                    selectedAlert.is_read ? 'text-gray-600' : 'text-danger-600'
-                  }`}>
-                    {selectedAlert.is_read ? (
-                      <>
-                        <Check className="h-4 w-4" />
-                        Read
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="h-4 w-4" />
-                        Unread
-                      </>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Marked At</span>
+                      <span className="font-medium">
+                        {(selectedAlert.timestamp || selectedAlert.created_at)
+                          ? format(new Date(selectedAlert.timestamp || selectedAlert.created_at), 'MMMM d, yyyy HH:mm:ss')
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    {selectedAlert.marked_by && (
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span className="text-gray-500">Marked By</span>
+                        <span className="font-medium">{selectedAlert.marked_by}</span>
+                      </div>
                     )}
-                  </span>
-                </div>
-              </div>
+                    {selectedAlert.notes && (
+                      <div className="py-2 border-b border-gray-100">
+                        <span className="text-gray-500">Notes</span>
+                        <p className="mt-1 text-gray-800">{selectedAlert.notes}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Email Notification</span>
+                      <span className={`flex items-center gap-1 ${
+                        selectedAlert.email_sent ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        <Mail className="h-4 w-4" />
+                        {selectedAlert.email_sent ? 'Sent' : 'Not sent'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Past Contacts Section */}
+                  {selectedAlert.past_contacts && selectedAlert.past_contacts.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <Users className="h-5 w-5 text-orange-500" />
+                        Past Contact History ({selectedAlert.past_contacts.length} contacts)
+                      </h4>
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-orange-200">
+                          <thead className="bg-orange-100">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-orange-800 uppercase">Contact Person</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-orange-800 uppercase">Contact Time</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-orange-800 uppercase">Duration</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-orange-800 uppercase">Risk</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-orange-100">
+                            {selectedAlert.past_contacts.map((contact, index) => (
+                              <tr key={index} className="hover:bg-orange-50">
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                      <User className="h-4 w-4 text-blue-600" />
+                                    </div>
+                                    <span className="font-medium text-gray-900">{contact.person_name || contact.contacted_person || contact.contact_name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600">
+                                  {(contact.last_contact || contact.first_contact || contact.contact_time) 
+                                    ? format(new Date(contact.last_contact || contact.first_contact || contact.contact_time), 'MMM d, HH:mm') 
+                                    : 'N/A'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600">
+                                  {contact.total_duration 
+                                    ? `${Math.round(contact.total_duration)}s`
+                                    : contact.duration_seconds 
+                                      ? `${Math.round(contact.duration_seconds)}s`
+                                      : contact.duration_minutes 
+                                        ? `${contact.duration_minutes.toFixed(1)}min`
+                                        : 'N/A'
+                                  }
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    (contact.risk_percent || 0) >= 40 
+                                      ? 'bg-red-100 text-red-800' 
+                                      : (contact.risk_percent || 0) >= 20
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-green-100 text-green-800'
+                                  }`}>
+                                    {(contact.risk_percent || 0).toFixed(1)}%
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No Past Contacts Message */}
+                  {(!selectedAlert.past_contacts || selectedAlert.past_contacts.length === 0) && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg text-center">
+                      <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500">No past contacts found during incubation period</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Persons Involved - Contact Alert */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-red-50 rounded-lg">
+                      <p className="text-xs text-red-600 uppercase font-medium mb-2">MDR Patient</p>
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                          <User className="h-5 w-5 text-red-600" />
+                        </div>
+                        <span className="font-medium text-gray-900">{selectedAlert.mdr_patient}</span>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <p className="text-xs text-blue-600 uppercase font-medium mb-2">Contact Person</p>
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <User className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <span className="font-medium text-gray-900">{selectedAlert.contacted_person || selectedAlert.contact_name || 'Unknown'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Risk Assessment */}
+                  <div className={`p-4 rounded-lg border-2 ${
+                    (selectedAlert.risk_percent || 0) >= 40 
+                      ? 'border-red-300 bg-red-50' 
+                      : (selectedAlert.risk_percent || 0) >= 20 
+                        ? 'border-yellow-300 bg-yellow-50'
+                        : 'border-green-300 bg-green-50'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Risk Factor</p>
+                        <p className={`text-2xl font-bold ${
+                          (selectedAlert.risk_percent || 0) >= 40 
+                            ? 'text-red-600' 
+                            : (selectedAlert.risk_percent || 0) >= 20 
+                              ? 'text-yellow-600'
+                              : 'text-green-600'
+                        }`}>
+                          {(selectedAlert.risk_percent || 0).toFixed(1)}%
+                        </p>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        (selectedAlert.risk_percent || 0) >= 40 
+                          ? 'bg-red-100 text-red-800' 
+                          : (selectedAlert.risk_percent || 0) >= 20 
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                      }`}>
+                        {(selectedAlert.risk_percent || 0) >= 40 ? 'High Risk' : (selectedAlert.risk_percent || 0) >= 20 ? 'Medium Risk' : 'Low Risk'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Details */}
+                  <div className="space-y-3">
+                    {selectedAlert.alert_type === 'mdr_contact' && (
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span className="text-gray-500">Alert Type</span>
+                        <span className="px-2 py-1 bg-red-100 text-red-800 rounded font-medium text-sm">
+                          Live Alert
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Alert Time</span>
+                      <span className="font-medium">
+                        {(selectedAlert.timestamp || selectedAlert.created_at)
+                          ? format(new Date(selectedAlert.timestamp || selectedAlert.created_at), 'MMMM d, yyyy HH:mm:ss')
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Contact Duration</span>
+                      <span className="font-medium">
+                        {selectedAlert.duration_seconds 
+                          ? `${Math.round(selectedAlert.duration_seconds)} seconds` 
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Total Interactions</span>
+                      <span className="font-medium">
+                        {selectedAlert.contact_count ? `${selectedAlert.contact_count} contacts` : '1 contact'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Email Notification</span>
+                      <span className={`flex items-center gap-1 ${
+                        selectedAlert.email_sent ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        <Mail className="h-4 w-4" />
+                        {selectedAlert.email_sent ? 'Sent' : 'Not sent'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Status</span>
+                      <span className={`flex items-center gap-1 ${
+                        selectedAlert.is_read ? 'text-gray-600' : 'text-danger-600'
+                      }`}>
+                        {selectedAlert.is_read ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Read
+                          </>
+                        ) : (
+                          <>
+                            <Bell className="h-4 w-4" />
+                            Unread
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Snapshot */}
               {selectedAlert.snapshot_base64 && (

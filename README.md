@@ -9,7 +9,8 @@ A comprehensive dual-camera contact tracing system with a web interface for hosp
 - **Collision Detection**: Monitors close contact between individuals
 - **MDR Management**: Track and manage multi-drug resistant patients
 - **Contact Alerts**: Email and web notifications for MDR contacts
-- **Web Dashboard**: React-based admin interface
+- **Web Dashboard**: React-based admin interface with role-based access
+- **AI Monitoring**: Integrated video/webcam processing through web interface
 
 ## Tech Stack
 
@@ -17,6 +18,7 @@ A comprehensive dual-camera contact tracing system with a web interface for hosp
 - **Backend**: FastAPI, Python 3.10+
 - **Database**: MongoDB
 - **AI/ML**: InsightFace, YOLO, DeepSORT, OSNet
+- **Real-time**: WebSocket for live frame streaming
 
 ---
 
@@ -27,7 +29,7 @@ A comprehensive dual-camera contact tracing system with a web interface for hosp
 - Python 3.10+
 - Node.js 18+
 - MongoDB (running locally or remote)
-- Webcam (for face registration)
+- Webcam (for face registration and monitoring)
 
 ### 2. Backend Setup
 
@@ -69,20 +71,64 @@ On first run, a default admin user is created:
 
 ---
 
+## User Roles & Permissions
+
+The system has three user roles with different access levels:
+
+| Role | Accessible Pages |
+|------|-----------------|
+| **Admin** | Dashboard, Register Person, Registered Persons, MDR Management, Alerts, Unknown Persons, AI Monitoring, User Management |
+| **EHR User** | Dashboard, Registered Persons, MDR Management, Alerts |
+| **Officer** | Dashboard, Register Person, Registered Persons, Unknown Persons, AI Monitoring |
+
+Only administrators can create, edit, or delete user accounts.
+
+---
+
 ## Web Application Pages
 
-1. **Login/Register**: User authentication
+1. **Login**: User authentication (admin-managed accounts only)
 2. **Dashboard**: System overview with stats and recent activity
 3. **Register Person**: Capture face images via webcam (50 samples)
 4. **Registered Persons**: View, edit, delete registered individuals
 5. **MDR Management**: Mark/unmark patients as MDR, view contacts
 6. **Alerts**: MDR contact notifications with snapshots
+7. **Unknown Persons**: Track unidentified individuals detected by the system
+8. **AI Monitoring**: Web-based video/webcam processing with live preview
+9. **User Management**: Admin-only page for managing system users
 
 ---
 
-## Contact Monitoring (CLI)
+## AI Monitoring (Web Interface)
 
-The monitoring system still runs via command line:
+The monitoring system is now integrated into the web application:
+
+### Video File Mode
+1. Navigate to **AI Monitoring** page
+2. Select **Video File** mode
+3. Upload front and side camera videos
+4. Select both videos and click **Start Monitoring**
+5. View live processed frames with detection overlays
+
+### Webcam Mode
+1. Navigate to **AI Monitoring** page
+2. Select **Live Webcam** mode
+3. Select camera indices for front and side views
+4. Click **Start Monitoring**
+5. View real-time contact detection
+
+### Features
+- Real-time frame streaming via WebSocket
+- Contact collision alerts displayed as notifications
+- Configurable detection parameters (confidence, threshold, etc.)
+- Session status tracking
+- GPU acceleration support
+
+---
+
+## Contact Monitoring (Legacy CLI)
+
+The monitoring system can still run via command line:
 
 ```powershell
 python src/monitor_contacts.py

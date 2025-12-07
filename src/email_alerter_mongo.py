@@ -99,7 +99,8 @@ class EmailAlerterMongo:
             "duration_seconds": alert.duration_seconds,
             "risk_percent": alert.risk_percent,
             "status": "ongoing" if alert.contact_end is None else "completed",
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(),  # Use local time
+            "alert_created_at": datetime.now(),  # When the alert was triggered (local time)
             "read": False,
             "email_sent": False,
             "alert_type": "mdr_contact"
@@ -259,8 +260,34 @@ class EmailAlerterMongo:
 
     # MongoDB query methods for the API
     def get_all_alerts(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get all MDR alerts from MongoDB, aggregated by MDR patient + contacted person."""
-        # Aggregate alerts by mdr_patient + contacted_person pair
+        """Get all MDR alerts from MongoDB: mdr_marked (with past contacts) and mdr_contact (live)."""
+        alerts = []
+        
+        # Get mdr_marked alerts (patient marked as MDR - includes past contacts)
+        marked_alerts = list(self.collection.find(
+            {"alert_type": "mdr_marked"}
+        ).sort("timestamp", -1).limit(limit))
+        
+        for doc in marked_alerts:
+            past_contacts = doc.get("past_contacts", [])
+            alerts.append({
+                "id": str(doc["_id"]),
+                "alert_type": "mdr_marked",
+                "mdr_patient": doc.get("mdr_patient"),
+                "pathogen_type": doc.get("pathogen_type"),
+                "pathogen_factor": doc.get("pathogen_factor"),
+                "marked_by": doc.get("marked_by"),
+                "notes": doc.get("notes"),
+                "past_contacts": past_contacts,
+                "past_contacts_count": len(past_contacts),
+                "timestamp": doc.get("timestamp"),
+                "created_at": doc.get("created_at"),
+                "is_read": doc.get("read", False),
+                "read": doc.get("read", False),
+                "email_sent": doc.get("email_sent", False),
+            })
+        
+        # Get mdr_contact alerts (live real-time contacts)
         pipeline = [
             {"$match": {"alert_type": "mdr_contact"}},
             {"$group": {
@@ -270,7 +297,6 @@ class EmailAlerterMongo:
                 "max_risk": {"$max": "$risk_percent"},
                 "first_contact": {"$min": "$created_at"},
                 "last_contact": {"$max": "$created_at"},
-                "last_contact_start": {"$last": "$contact_start"},  # Use contact_start (local time)
                 "last_id": {"$last": "$_id"},
                 "any_email_sent": {"$max": {"$cond": ["$email_sent", 1, 0]}},
                 "any_unread": {"$max": {"$cond": [{"$eq": ["$read", False]}, 1, 0]}},
@@ -283,12 +309,10 @@ class EmailAlerterMongo:
             {"$limit": limit}
         ]
         
-        alerts = []
         for doc in self.collection.aggregate(pipeline):
-            # Use contact_start (local time) for display, fallback to created_at
-            display_timestamp = doc.get("last_contact_start") or doc["last_contact"]
             alerts.append({
                 "id": str(doc["last_id"]),
+                "alert_type": "mdr_contact",
                 "mdr_patient": doc["_id"]["mdr_patient"],
                 "contacted_person": doc["_id"]["contacted_person"],
                 "contact_count": doc["contact_count"],
@@ -297,17 +321,47 @@ class EmailAlerterMongo:
                 "risk_percent": round(doc["max_risk"], 1),
                 "first_contact": doc["first_contact"],
                 "created_at": doc["last_contact"],
-                "timestamp": display_timestamp,  # Use local time from contact_start
+                "timestamp": doc["last_contact"],  # When contact was detected
                 "is_read": doc["any_unread"] == 0,
                 "read": doc["any_unread"] == 0,
                 "email_sent": doc["any_email_sent"] == 1,
                 "has_front_snapshot": doc["has_snapshot"] == 1,
                 "has_side_snapshot": doc["has_snapshot"] == 1
             })
-        return alerts
+        
+        # Sort all alerts by timestamp
+        alerts.sort(key=lambda x: x.get("timestamp") or x.get("created_at") or datetime.min, reverse=True)
+        return alerts[:limit]
 
     def get_unread_alerts(self) -> List[Dict[str, Any]]:
-        """Get unread MDR alerts, aggregated by MDR patient + contacted person."""
+        """Get unread MDR alerts including mdr_marked, mdr_contact, and backtrack types."""
+        alerts = []
+        
+        # Get unread mdr_marked alerts
+        # Get unread mdr_marked alerts (combined alerts with past contacts)
+        marked_alerts = list(self.collection.find(
+            {"alert_type": "mdr_marked", "read": False}
+        ).sort("timestamp", -1))
+        
+        for doc in marked_alerts:
+            alert_data = {
+                "id": str(doc["_id"]),
+                "alert_type": "mdr_marked",
+                "mdr_patient": doc.get("mdr_patient"),
+                "pathogen_type": doc.get("pathogen_type"),
+                "marked_by": doc.get("marked_by"),
+                "timestamp": doc.get("timestamp"),
+                "created_at": doc.get("created_at"),
+                "is_read": False,
+                "read": False
+            }
+            # Include past contacts if available (combined alert format)
+            if "past_contacts" in doc:
+                alert_data["past_contacts"] = doc.get("past_contacts", [])
+                alert_data["contact_count"] = len(doc.get("past_contacts", []))
+            alerts.append(alert_data)
+        
+        # Get unread contact alerts (real-time future contacts)
         pipeline = [
             {"$match": {"alert_type": "mdr_contact", "read": False}},
             {"$group": {
@@ -316,18 +370,19 @@ class EmailAlerterMongo:
                 "total_duration": {"$sum": "$duration_seconds"},
                 "max_risk": {"$max": "$risk_percent"},
                 "last_contact": {"$max": "$created_at"},
-                "last_contact_start": {"$last": "$contact_start"},  # Use contact_start (local time)
+                "alert_created_at": {"$max": "$alert_created_at"},
+                "alert_type": {"$last": "$alert_type"},
                 "last_id": {"$last": "$_id"}
             }},
-            {"$sort": {"last_contact": -1}}
+            {"$sort": {"alert_created_at": -1, "last_contact": -1}}
         ]
         
-        alerts = []
         for doc in self.collection.aggregate(pipeline):
-            # Use contact_start (local time) for display, fallback to created_at
-            display_timestamp = doc.get("last_contact_start") or doc["last_contact"]
+            # Use alert_created_at (when alert was triggered) as display timestamp
+            display_timestamp = doc.get("alert_created_at") or doc["last_contact"]
             alerts.append({
                 "id": str(doc["last_id"]),
+                "alert_type": "mdr_contact",
                 "mdr_patient": doc["_id"]["mdr_patient"],
                 "contacted_person": doc["_id"]["contacted_person"],
                 "contact_count": doc["contact_count"],
@@ -335,14 +390,20 @@ class EmailAlerterMongo:
                 "duration_minutes": round(doc["total_duration"] / 60.0, 2),
                 "risk_percent": round(doc["max_risk"], 1),
                 "created_at": doc["last_contact"],
-                "timestamp": display_timestamp,  # Use local time from contact_start
+                "timestamp": display_timestamp,
                 "is_read": False,
                 "read": False
             })
+        
+        alerts.sort(key=lambda x: x.get("timestamp") or x.get("created_at") or datetime.min, reverse=True)
         return alerts
 
     def get_unread_count(self) -> int:
-        """Get count of unique unread alert pairs (MDR patient + contacted person)."""
+        """Get count of unique unread alerts (mdr_marked + contact pairs)."""
+        # Count unread mdr_marked alerts
+        marked_count = self.collection.count_documents({"alert_type": "mdr_marked", "read": False})
+        
+        # Count unique unread contact pairs (real-time future contacts)
         pipeline = [
             {"$match": {"alert_type": "mdr_contact", "read": False}},
             {"$group": {
@@ -351,18 +412,28 @@ class EmailAlerterMongo:
             {"$count": "total"}
         ]
         result = list(self.collection.aggregate(pipeline))
-        return result[0]["total"] if result else 0
+        contact_count = result[0]["total"] if result else 0
+        
+        return marked_count + contact_count
 
     def mark_as_read(self, alert_id: str) -> bool:
-        """Mark all alerts for the same MDR patient + contacted person pair as read."""
+        """Mark alert as read. For contact alerts, mark all for the same pair."""
         from bson import ObjectId
         
-        # First, get the alert to find the pair
+        # First, get the alert to find the type
         alert = self.collection.find_one({"_id": ObjectId(alert_id)})
         if not alert:
             return False
         
-        # Mark all alerts for this pair as read
+        # For mdr_marked alerts, just mark that one
+        if alert.get("alert_type") == "mdr_marked":
+            result = self.collection.update_one(
+                {"_id": ObjectId(alert_id)},
+                {"$set": {"read": True, "read_at": datetime.utcnow()}}
+            )
+            return result.modified_count > 0
+        
+        # For contact alerts, mark all alerts for this pair as read
         result = self.collection.update_many(
             {
                 "alert_type": "mdr_contact",
@@ -376,7 +447,7 @@ class EmailAlerterMongo:
     def mark_all_as_read(self) -> int:
         """Mark all alerts as read. Returns count of updated documents."""
         result = self.collection.update_many(
-            {"alert_type": "mdr_contact", "read": False},
+            {"alert_type": {"$in": ["mdr_contact", "mdr_marked"]}, "read": False},
             {"$set": {"read": True, "read_at": datetime.utcnow()}}
         )
         return result.modified_count

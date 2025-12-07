@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv(ROOT_DIR / ".env", override=True)
 
 # Import routers
-from routers import auth, persons, mdr, alerts, dashboard, face_registration, unknown_persons
+from routers import auth, persons, mdr, alerts, dashboard, face_registration, unknown_persons, monitoring, pathogens
 
 # Import database initialization
 from database import initialize_database
@@ -69,8 +69,10 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"]
 app.include_router(persons.router, prefix="/api/persons", tags=["Persons"])
 app.include_router(face_registration.router, prefix="/api/face", tags=["Face Registration"])
 app.include_router(mdr.router, prefix="/api/mdr", tags=["MDR Management"])
+app.include_router(pathogens.router, prefix="/api/pathogens", tags=["Pathogen Management"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(unknown_persons.router, prefix="/api/unknown", tags=["Unknown Persons"])
+app.include_router(monitoring.router, prefix="/api/monitoring", tags=["AI Monitoring"])
 
 
 @app.get("/")

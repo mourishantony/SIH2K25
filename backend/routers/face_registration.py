@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 
 from database import get_persons_collection, get_face_images_collection
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_permission
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ class TrainingResponse(BaseModel):
 
 
 @router.get("/settings")
-async def get_face_settings(current_user: dict = Depends(get_current_user)):
+async def get_face_settings(current_user: dict = Depends(require_permission("register_person"))):
     """Get face registration settings."""
     return {
         "total_samples": FACE_REG_TOTAL_SAMPLES,
@@ -50,7 +50,7 @@ async def get_face_settings(current_user: dict = Depends(get_current_user)):
 async def upload_face_images(
     data: FaceImageUpload,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("register_person"))
 ):
     """Upload face images for a person and optionally trigger training."""
     persons = get_persons_collection()
@@ -121,7 +121,7 @@ def train_person_background(person_name: str):
 @router.post("/train", response_model=TrainingResponse)
 async def train_face(
     data: TrainingRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("register_person"))
 ):
     """Manually trigger face training for a person."""
     persons = get_persons_collection()
@@ -156,7 +156,7 @@ async def train_face(
 @router.post("/retrain")
 async def retrain_face(
     data: TrainingRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("register_person"))
 ):
     """Retrain all images for a person (clears existing embeddings)."""
     persons = get_persons_collection()
@@ -190,7 +190,7 @@ async def retrain_face(
 @router.get("/status/{person_name}")
 async def get_training_status_endpoint(
     person_name: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("register_person"))
 ):
     """Get training status for a person."""
     persons = get_persons_collection()
@@ -211,7 +211,7 @@ async def get_training_status_endpoint(
 @router.delete("/images/{person_name}")
 async def delete_face_images(
     person_name: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("register_person"))
 ):
     """Delete all face images and embeddings for a person."""
     persons = get_persons_collection()
@@ -236,7 +236,7 @@ async def delete_face_images(
 
 
 @router.get("/registered")
-async def get_registered_faces(current_user: dict = Depends(get_current_user)):
+async def get_registered_faces(current_user: dict = Depends(require_permission("registered_persons"))):
     """Get list of all persons with registered faces."""
     from face_db_mongo import get_all_registered_names
     

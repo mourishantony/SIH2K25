@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Activity, Eye, EyeOff } from 'lucide-react';
+import { Activity, Eye, EyeOff, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -23,8 +23,8 @@ export default function Login() {
     setLoading(true);
     
     try {
-      await login(username, password);
-      toast.success('Welcome back!');
+      const user = await login(username, password);
+      toast.success(`Welcome back, ${user.username}!`);
       navigate('/dashboard');
     } catch (error) {
       const message = error.response?.data?.detail || 'Login failed';
@@ -99,18 +99,20 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <p className="text-gray-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 hover:underline font-medium">
-              Register
-            </Link>
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+            <Shield className="h-4 w-4" />
+            <span className="font-medium">Secure Access</span>
+          </div>
+          <p className="text-xs text-gray-500">
+            User accounts are managed by system administrators. 
+            Contact your admin if you need access.
           </p>
         </div>
 
-        <div className="mt-8 pt-6 border-t">
+        <div className="mt-6 pt-6 border-t">
           <p className="text-xs text-gray-400 text-center">
-            Default credentials: admin / admin123
+            Default admin credentials: admin / admin123
           </p>
         </div>
       </div>

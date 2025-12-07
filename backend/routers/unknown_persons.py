@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_permission
 
 router = APIRouter()
 
@@ -27,7 +27,7 @@ class RegisterUnknownRequest(BaseModel):
 
 @router.get("/settings")
 async def get_registration_settings(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get settings for unknown person registration."""
     from config import UNKNOWN_REGISTER_MAX_IMAGES
@@ -39,7 +39,7 @@ async def get_registration_settings(
 @router.get("/")
 async def get_all_unknown_persons(
     limit: int = Query(100, ge=1, le=500),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get all tracked unknown persons."""
     from unknown_tracker_mongo import get_all_unknown_persons
@@ -55,7 +55,7 @@ async def get_all_unknown_persons(
 @router.get("/{temp_id}")
 async def get_unknown_person_detail(
     temp_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get detailed info for an unknown person including face snapshot."""
     from unknown_tracker_mongo import get_unknown_person_detail
@@ -74,7 +74,7 @@ async def get_unknown_person_detail(
 async def get_unknown_person_contacts(
     temp_id: str,
     limit: int = Query(50, ge=1, le=200),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get all contacts for an unknown person."""
     from database import get_unknown_contacts_collection
@@ -111,7 +111,7 @@ async def get_unknown_person_contacts(
 async def mark_unknown_as_known_endpoint(
     temp_id: str,
     request: MarkKnownRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Link an unknown person to a registered person."""
     from unknown_tracker_mongo import mark_unknown_as_known
@@ -135,7 +135,7 @@ async def mark_unknown_as_known_endpoint(
 @router.get("/by-registered/{person_name}")
 async def get_unknown_contacts_for_registered_person(
     person_name: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get all unknown person contacts for a registered person."""
     from unknown_tracker_mongo import get_unknown_contacts_for_person
@@ -152,7 +152,7 @@ async def get_unknown_contacts_for_registered_person(
 @router.get("/mdr/{mdr_patient_name}")
 async def get_unknown_contacts_with_mdr(
     mdr_patient_name: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get all unknown persons who had contact with an MDR patient.
     
@@ -181,7 +181,7 @@ async def get_unknown_contacts_with_mdr(
 @router.get("/contact/{contact_id}/snapshot")
 async def get_contact_snapshot(
     contact_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Get snapshots for a specific unknown person contact."""
     from database import get_unknown_contacts_collection
@@ -208,7 +208,7 @@ async def get_contact_snapshot(
 @router.delete("/{temp_id}")
 async def delete_unknown_person(
     temp_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Delete an unknown person and their contact history."""
     from unknown_tracker_mongo import delete_unknown_person as do_delete
@@ -232,7 +232,7 @@ async def delete_unknown_person(
 async def register_unknown_person(
     temp_id: str,
     request: RegisterUnknownRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("unknown_persons"))
 ):
     """Convert an unknown person to a registered person.
     

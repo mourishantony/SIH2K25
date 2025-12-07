@@ -190,7 +190,8 @@ collision_settings = CollisionSettings(
 
 # Unknown person registration settings
 UNKNOWN_REGISTER_MAX_IMAGES = _get_int("UNKNOWN_REGISTER_MAX_IMAGES", 50)
-MDR_ALERT_THRESHOLD_SECONDS = _get_float("MDR_ALERT_THRESHOLD_SECONDS", 300.0)  # 5 minutes
+MDR_ALERT_THRESHOLD_SECONDS = _get_float("MDR_ALERT_THRESHOLD_SECONDS", 300.0)  # 5 minutes for MDR alerts
+CONTACT_LOG_MIN_DURATION_SECONDS = _get_float("CONTACT_LOG_MIN_DURATION_SECONDS", 3.0)  # 3 seconds for logging contacts
 
 # ============================================
 # MDR Risk Calculation Settings

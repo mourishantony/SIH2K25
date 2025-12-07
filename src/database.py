@@ -152,6 +152,11 @@ def get_person_risk_scores_collection() -> Collection:
     return get_database()["person_risk_scores"]
 
 
+def get_pathogens_collection() -> Collection:
+    """Get pathogens collection for MDR pathogen types."""
+    return get_database()["pathogens"]
+
+
 def init_indexes():
     """Initialize database indexes for better performance."""
     try:
@@ -217,16 +222,25 @@ def init_indexes():
         person_risk_scores.create_index("person")
         person_risk_scores.create_index("other_person")
         person_risk_scores.create_index([("person", ASCENDING), ("other_person", ASCENDING)], unique=True)
+        
+        # Pathogens indexes
+        pathogens = get_pathogens_collection()
+        pathogens.create_index("name", unique=True)
     except Exception as e:
         print(f"[DB] Warning creating indexes (may already exist): {e}")
 
 
 def init_default_admin():
-    """Create default admin user if not exists."""
+    """Create default admin user if not exists. Also clears existing users without roles."""
     users = get_users_collection()
     admin_username = os.getenv("ADMIN_USERNAME", "admin")
     admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
     admin_email = os.getenv("ADMIN_EMAIL", "admin@hospital.com")
+    
+    # Clear existing users without role field (old system users)
+    old_users = users.delete_many({"role": {"$exists": False}})
+    if old_users.deleted_count > 0:
+        print(f"[DB] Cleared {old_users.deleted_count} old user(s) without role field.")
     
     existing = users.find_one({"username": admin_username})
     if not existing:
@@ -236,11 +250,20 @@ def init_default_admin():
             "username": admin_username,
             "email": admin_email,
             "password_hash": password_hash,
-            "is_admin": True,
+            "role": "admin",  # New role-based field
+            "is_active": True,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         })
-        print(f"[DB] Default admin user '{admin_username}' created.")
+        print(f"[DB] Default admin user '{admin_username}' created with role 'admin'.")
+    else:
+        # Ensure existing admin has role field
+        if "role" not in existing:
+            users.update_one(
+                {"username": admin_username},
+                {"$set": {"role": "admin", "is_active": True, "updated_at": datetime.utcnow()}}
+            )
+            print(f"[DB] Updated existing admin user with role 'admin'.")
 
 
 def initialize_database():
@@ -263,7 +286,40 @@ def initialize_database():
     # Create default admin
     init_default_admin()
     
+    # Initialize default pathogens
+    init_default_pathogens()
+    
     print("[DB] Database initialization complete.")
+
+
+def init_default_pathogens():
+    """Initialize default MDR pathogens if not exist."""
+    pathogens = get_pathogens_collection()
+    
+    default_pathogens = [
+        {"name": "MRSA", "risk_factor": 1.2, "incubation_days": 10, "description": "Methicillin-resistant Staphylococcus aureus"},
+        {"name": "MDR-TB", "risk_factor": 2.0, "incubation_days": 28, "description": "Multi-drug resistant Tuberculosis"},
+        {"name": "VRE", "risk_factor": 1.5, "incubation_days": 7, "description": "Vancomycin-resistant Enterococci"},
+        {"name": "CRE", "risk_factor": 1.8, "incubation_days": 14, "description": "Carbapenem-resistant Enterobacteriaceae"},
+        {"name": "ESBL", "risk_factor": 1.3, "incubation_days": 7, "description": "Extended-spectrum beta-lactamase producing bacteria"},
+        {"name": "Other", "risk_factor": 1.0, "incubation_days": 14, "description": "Other MDR pathogens"},
+    ]
+    
+    for pathogen in default_pathogens:
+        existing = pathogens.find_one({"name": pathogen["name"]})
+        if not existing:
+            pathogen["created_at"] = datetime.utcnow()
+            pathogen["updated_at"] = datetime.utcnow()
+            pathogens.insert_one(pathogen)
+            print(f"[DB] Created default pathogen: {pathogen['name']}")
+        else:
+            # Update with incubation_days if missing
+            if "incubation_days" not in existing:
+                pathogens.update_one(
+                    {"name": pathogen["name"]},
+                    {"$set": {"incubation_days": pathogen["incubation_days"], "updated_at": datetime.utcnow()}}
+                )
+                print(f"[DB] Updated pathogen with incubation_days: {pathogen['name']}")
 
 
 __all__ = [

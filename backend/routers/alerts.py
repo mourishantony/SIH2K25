@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_permission
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ router = APIRouter()
 async def get_all_alerts(
     limit: int = Query(100, ge=1, le=500),
     unread_only: bool = Query(False),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("alerts"))
 ):
     """Get all MDR contact alerts."""
     from email_alerter_mongo import get_email_alerter
@@ -34,7 +34,7 @@ async def get_all_alerts(
 
 
 @router.get("/unread")
-async def get_unread_alerts(current_user: dict = Depends(get_current_user)):
+async def get_unread_alerts(current_user: dict = Depends(require_permission("alerts"))):
     """Get unread alerts for notification popup."""
     from email_alerter_mongo import get_email_alerter
     
@@ -49,7 +49,7 @@ async def get_unread_alerts(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/count")
-async def get_alert_counts(current_user: dict = Depends(get_current_user)):
+async def get_alert_counts(current_user: dict = Depends(require_permission("alerts"))):
     """Get alert counts for dashboard."""
     from email_alerter_mongo import get_email_alerter
     from alert_system_mongo import get_alert_system
@@ -67,7 +67,7 @@ async def get_alert_counts(current_user: dict = Depends(get_current_user)):
 @router.get("/{alert_id}")
 async def get_alert_detail(
     alert_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("alerts"))
 ):
     """Get detailed alert information including snapshots."""
     from email_alerter_mongo import get_email_alerter
@@ -88,7 +88,7 @@ async def get_alert_detail(
 @router.post("/{alert_id}/read")
 async def mark_alert_read(
     alert_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("alerts"))
 ):
     """Mark an alert as read."""
     from email_alerter_mongo import get_email_alerter
@@ -107,7 +107,7 @@ async def mark_alert_read(
 
 
 @router.post("/read-all")
-async def mark_all_alerts_read(current_user: dict = Depends(get_current_user)):
+async def mark_all_alerts_read(current_user: dict = Depends(require_permission("alerts"))):
     """Mark all alerts as read."""
     from email_alerter_mongo import get_email_alerter
     
@@ -123,7 +123,7 @@ async def mark_all_alerts_read(current_user: dict = Depends(get_current_user)):
 @router.get("/patient/{patient_name}")
 async def get_alerts_for_patient(
     patient_name: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("alerts"))
 ):
     """Get all alerts for a specific MDR patient."""
     from email_alerter_mongo import get_email_alerter
@@ -141,7 +141,7 @@ async def get_alerts_for_patient(
 @router.get("/collision/recent")
 async def get_recent_collision_alerts(
     limit: int = Query(50, ge=1, le=200),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("alerts"))
 ):
     """Get recent collision alerts (general proximity alerts)."""
     from alert_system_mongo import get_alert_system
@@ -158,7 +158,7 @@ async def get_recent_collision_alerts(
 @router.post("/collision/{alert_id}/read")
 async def mark_collision_alert_read(
     alert_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("alerts"))
 ):
     """Mark a collision alert as read."""
     from alert_system_mongo import get_alert_system

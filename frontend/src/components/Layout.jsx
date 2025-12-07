@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { alertsAPI } from '../api';
 import { 
@@ -12,21 +12,27 @@ import {
   Menu,
   X,
   Activity,
-  UserX
+  UserX,
+  Camera,
+  ShieldAlert,
+  Settings
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/register-person', label: 'Register Person', icon: UserPlus },
-  { path: '/persons', label: 'Registered Persons', icon: Users },
-  { path: '/mdr', label: 'MDR Management', icon: AlertTriangle },
-  { path: '/alerts', label: 'Alerts', icon: Bell },
-  { path: '/unknown-persons', label: 'Unknown Persons', icon: UserX },
-];
+// Icon mapping for dynamic navigation
+const ICON_MAP = {
+  LayoutDashboard,
+  UserPlus,
+  Users,
+  Camera,
+  UserX,
+  ShieldAlert,
+  Bell,
+  Settings,
+};
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, allowedNavItems, hasPermission } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadAlerts, setUnreadAlerts] = useState(0);
@@ -115,8 +121,8 @@ export default function Layout() {
         </div>
 
         <nav className="p-4 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
+          {allowedNavItems.map((item) => {
+            const Icon = ICON_MAP[item.icon] || LayoutDashboard;
             const isActive = location.pathname === item.path;
             
             return (
@@ -154,6 +160,7 @@ export default function Layout() {
             <div className="flex-1 min-w-0">
               <p className="font-medium text-gray-800 truncate">{user?.username}</p>
               <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              <p className="text-xs text-primary-600 capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </div>
           <button

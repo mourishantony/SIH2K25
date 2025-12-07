@@ -58,7 +58,7 @@ def mark_as_mdr(
     # Mark as MDR
     collection.insert_one({
         "name": name,
-        "marked_at": datetime.utcnow(),
+        "marked_at": datetime.now(),  # Use local time
         "marked_by": marked_by,
         "notes": notes,
         "pathogen_type": pathogen_type,
@@ -71,7 +71,7 @@ def mark_as_mdr(
         {"name": name},
         {"$set": {
             "is_mdr": True, 
-            "mdr_marked_at": datetime.utcnow(),
+            "mdr_marked_at": datetime.now(),  # Use local time
             "pathogen_type": pathogen_type,
             "pathogen_factor": pathogen_factor,
         }}
