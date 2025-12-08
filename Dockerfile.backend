@@ -1,0 +1,51 @@
+# Backend Dockerfile - Patient Contact Tracing System
+FROM python:3.10-slim
+
+# Install system dependencies for OpenCV and face recognition
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+# Use PyTorch CPU version for Docker (smaller image, works everywhere)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu && \
+    grep -Ev '^(torch|torchvision|torchaudio)\b|onnxruntime-gpu' requirements.txt > requirements.cpu.txt && \
+    pip install --no-cache-dir -r requirements.cpu.txt && \
+    pip install --no-cache-dir onnxruntime==1.18.0
+
+# Copy application code
+COPY backend/ ./backend/
+COPY src/ ./src/
+COPY data/ ./data/
+COPY start_server.py .
+
+# Create necessary directories
+RUN mkdir -p data/video_uploads
+
+# Expose backend port
+EXPOSE 8000
+
+# Environment variables (can be overridden)
+ENV PYTHONUNBUFFERED=1
+ENV MONGODB_URI=mongodb://mongodb:27017
+ENV MONGODB_DATABASE=patient_contact_tracing
+ENV BACKEND_HOST=0.0.0.0
+ENV BACKEND_PORT=8000
+
+# Run the application
+CMD ["python", "start_server.py"]
