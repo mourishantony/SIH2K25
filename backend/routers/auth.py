@@ -34,14 +34,14 @@ class UserRole(str, Enum):
 # Role permissions mapping
 ROLE_PERMISSIONS = {
     UserRole.ADMIN: [
-        "dashboard", "register_person", "registered_persons",
-        "alerts", "unknown_persons", "monitoring", "user_management"
+        "dashboard", "registered_persons", "unknown_persons",
+        "alerts", "user_management", "monitoring"
     ],
     UserRole.EHR_USER: [
-        "dashboard", "registered_persons", "mdr_management", "alerts", "pathogen_management"
+        "dashboard", "registered_persons", "mdr_management", "alerts"
     ],
     UserRole.OFFICER: [
-        "dashboard", "register_person", "registered_persons", "unknown_persons", "monitoring"
+        "dashboard", "register_person", "registered_persons", "unknown_persons"
     ],
 }
 
@@ -534,19 +534,19 @@ async def get_roles(current_user: dict = Depends(get_current_user)):
             {
                 "value": UserRole.ADMIN.value,
                 "label": "Administrator",
-                "description": "Full access to all features",
+                "description": "Dashboard, Registered Persons, Unknown Persons, Alerts, User Management, AI Monitoring",
                 "permissions": ROLE_PERMISSIONS[UserRole.ADMIN]
             },
             {
                 "value": UserRole.EHR_USER.value,
                 "label": "EHR System User",
-                "description": "Access to Dashboard, Registered Persons, MDR Management, and Alerts",
+                "description": "Dashboard, Registered Persons, MDR Management, Alerts",
                 "permissions": ROLE_PERMISSIONS[UserRole.EHR_USER]
             },
             {
                 "value": UserRole.OFFICER.value,
                 "label": "Officer",
-                "description": "Access to Dashboard, Register Person, Registered Persons, Unknown Persons, and Monitoring",
+                "description": "Dashboard, Register Person, Registered Persons, Unknown Persons",
                 "permissions": ROLE_PERMISSIONS[UserRole.OFFICER]
             }
         ]

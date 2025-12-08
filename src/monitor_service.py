@@ -373,10 +373,13 @@ class ContactMonitorService:
         # Load face database
         registry = load_facebank()
         if not registry:
-            raise ValueError("No embeddings found. Run face registration first.")
-        
-        self.names, self.embeddings = flatten_registry(registry)
-        self.embeddings = self.embeddings.astype(np.float32)
+            # No registered persons - allow monitoring but all will be unknown
+            print("[MonitorService] Warning: No embeddings found. All persons will be tracked as unknown.")
+            self.names = np.array([], dtype=str)
+            self.embeddings = np.zeros((0, 512), dtype=np.float32)
+        else:
+            self.names, self.embeddings = flatten_registry(registry)
+            self.embeddings = self.embeddings.astype(np.float32)
         
         # Load MDR patients
         self.mdr_patients = load_mdr_patients()
@@ -405,16 +408,21 @@ class ContactMonitorService:
         
         # Open video captures
         if self.mode == "video":
+            print(f"[MonitorService] Opening video files: front={self.front_video_path}, side={self.side_video_path}")
             self.front_capture = cv2.VideoCapture(self.front_video_path)
             self.side_capture = cv2.VideoCapture(self.side_video_path)
         else:  # webcam mode
+            print(f"[MonitorService] Opening webcams: front_idx={self.front_camera_index}, side_idx={self.side_camera_index}")
             self.front_capture = cv2.VideoCapture(self.front_camera_index)
             self.side_capture = cv2.VideoCapture(self.side_camera_index)
         
+        print(f"[MonitorService] Front camera opened: {self.front_capture.isOpened()}")
+        print(f"[MonitorService] Side camera opened: {self.side_capture.isOpened()}")
+        
         if not self.front_capture.isOpened():
-            raise ValueError(f"Cannot open front video/camera")
+            raise ValueError(f"Cannot open front video/camera (index={self.front_camera_index})")
         if not self.side_capture.isOpened():
-            raise ValueError(f"Cannot open side video/camera")
+            raise ValueError(f"Cannot open side video/camera (index={self.side_camera_index})")
         
         # Create view pipelines
         self.front_view = ViewPipeline(

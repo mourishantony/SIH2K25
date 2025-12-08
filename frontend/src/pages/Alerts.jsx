@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { alertsAPI } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { 
   AlertTriangle, Bell, Check, CheckCheck, Eye, 
-  Calendar, User, Users, Filter, RefreshCw, Mail, Image
+  Calendar, User, Users, Filter, RefreshCw, Mail, Image, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
 
 export default function Alerts() {
+  const { isAdmin } = useAuth();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, read
@@ -58,6 +60,30 @@ export default function Alerts() {
     }
   };
 
+  const handleDelete = async (alert) => {
+    const id = alert.id || alert._id;
+    if (!id) return;
+    if (!confirm('Delete this alert permanently?')) return;
+    try {
+      await alertsAPI.delete(id);
+      toast.success('Alert deleted');
+      fetchAlerts();
+    } catch (error) {
+      toast.error('Failed to delete alert');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm('Are you sure you want to delete ALL alerts? This action cannot be undone.')) return;
+    try {
+      const res = await alertsAPI.deleteAll();
+      toast.success(res.data.message || 'All alerts deleted');
+      fetchAlerts();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete all alerts');
+    }
+  };
+
   const unreadCount = alerts.filter(a => !a.is_read).length;
 
   return (
@@ -82,6 +108,15 @@ export default function Alerts() {
             <button onClick={handleMarkAllAsRead} className="btn-secondary flex items-center gap-2">
               <CheckCheck className="h-4 w-4" />
               Mark All Read
+            </button>
+          )}
+          {isAdmin && alerts.length > 0 && (
+            <button 
+              onClick={handleDeleteAll} 
+              className="btn-secondary flex items-center gap-2 text-red-600 hover:bg-red-50 border-red-200"
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear All Alerts
             </button>
           )}
         </div>
@@ -273,6 +308,13 @@ export default function Alerts() {
                         Mark Read
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDelete(alert)}
+                      className="btn-secondary text-sm py-1 flex items-center gap-1 text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>

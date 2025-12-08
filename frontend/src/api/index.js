@@ -139,6 +139,10 @@ export const alertsAPI = {
     api.post(`/alerts/${id}/read`),
   markAllAsRead: () => 
     api.post('/alerts/read-all'),
+  delete: (id) => 
+    api.delete(`/alerts/${id}`),
+  deleteAll: () => 
+    api.delete('/alerts/all'),
   getForPatient: (patientName) => 
     api.get(`/alerts/patient/${patientName}`),
   getCollisionAlerts: (limit = 50) => 

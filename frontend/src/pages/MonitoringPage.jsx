@@ -117,7 +117,10 @@ export default function MonitoringPage() {
   const enumerateWebcams = async () => {
     try {
       // Request permission first
-      await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // Immediately stop all tracks to release the camera
+      stream.getTracks().forEach(track => track.stop());
       
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(d => d.kind === 'videoinput');

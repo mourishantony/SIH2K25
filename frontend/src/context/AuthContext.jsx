@@ -6,14 +6,14 @@ const AuthContext = createContext(null);
 // Role-based permissions mapping (matches backend)
 const ROLE_PERMISSIONS = {
   admin: [
-    'dashboard', 'register_person', 'registered_persons', 
-    'alerts', 'unknown_persons', 'monitoring', 'user_management'
+    'dashboard', 'registered_persons', 'unknown_persons', 
+    'alerts', 'user_management', 'monitoring'
   ],
   ehr_user: [
-    'dashboard', 'registered_persons', 'mdr_management', 'alerts', 'pathogen_management'
+    'dashboard', 'registered_persons', 'mdr_management', 'alerts'
   ],
   officer: [
-    'dashboard', 'register_person', 'registered_persons', 'unknown_persons', 'monitoring'
+    'dashboard', 'register_person', 'registered_persons', 'unknown_persons'
   ],
 };
 

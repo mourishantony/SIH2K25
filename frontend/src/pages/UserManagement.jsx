@@ -14,9 +14,8 @@ const ROLE_LABELS = {
 };
 
 const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Administrator - Full access to all features' },
-  { value: 'ehr_user', label: 'EHR System User - Dashboard, Registered Persons, MDR, Alerts' },
-  { value: 'officer', label: 'Officer - Dashboard, Register Person, Persons, Unknown, Monitoring' },
+  { value: 'ehr_user', label: 'EHR System User', description: 'Dashboard, Registered Persons, MDR Management, Alerts' },
+  { value: 'officer', label: 'Officer', description: 'Dashboard, Register Person, Registered Persons, Unknown Persons' },
 ];
 
 export default function UserManagement() {
@@ -26,6 +25,8 @@ export default function UserManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const getUserId = (user) => user?.id || user?._id;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -94,7 +95,7 @@ export default function UserManagement() {
 
     setSaving(true);
     try {
-      await usersAPI.update(editingUser._id, updateData);
+      await usersAPI.update(getUserId(editingUser), updateData);
       toast.success('User updated successfully');
       setEditingUser(null);
       resetForm();
@@ -188,7 +189,7 @@ export default function UserManagement() {
                 {ROLE_LABELS[role.value].label}
               </span>
               <p className="text-sm text-gray-600 mt-2">
-                {role.label.split(' - ')[1]}
+                {role.description || role.label}
               </p>
             </div>
           ))}
@@ -225,7 +226,7 @@ export default function UserManagement() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {users.map((user) => (
-                  <tr key={user._id} className="hover:bg-gray-50">
+                    <tr key={getUserId(user)} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
@@ -260,7 +261,7 @@ export default function UserManagement() {
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(user._id, user.username)}
+                          onClick={() => handleDeleteUser(getUserId(user), user.username)}
                           disabled={user.username === currentUser?.username}
                           className="p-2 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title={user.username === currentUser?.username ? "Can't delete yourself" : "Delete user"}

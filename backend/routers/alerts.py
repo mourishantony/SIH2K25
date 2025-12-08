@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 
 from routers.auth import get_current_user, require_permission
+from database import get_alerts_collection
 
 router = APIRouter()
 
@@ -83,6 +84,26 @@ async def get_alert_detail(
         raise HTTPException(status_code=404, detail="Alert not found")
     
     return alert
+
+
+@router.delete("/{alert_id}")
+async def delete_alert(
+    alert_id: str,
+    current_user: dict = Depends(require_permission("alerts"))
+):
+    """Delete a specific alert by ID."""
+    alerts = get_alerts_collection()
+
+    try:
+        oid = ObjectId(alert_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid alert ID")
+
+    result = alerts.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    return {"message": "Alert deleted"}
 
 
 @router.post("/{alert_id}/read")
@@ -171,3 +192,24 @@ async def mark_collision_alert_read(
         raise HTTPException(status_code=400, detail="Invalid alert ID")
     
     return {"success": success}
+
+
+@router.delete("/all")
+async def delete_all_alerts(
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete all alerts. Admin only."""
+    # Check if user is admin
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin can delete all alerts"
+        )
+    
+    alerts = get_alerts_collection()
+    result = alerts.delete_many({})
+    
+    return {
+        "message": f"Deleted {result.deleted_count} alerts",
+        "deleted_count": result.deleted_count
+    }
