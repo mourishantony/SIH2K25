@@ -20,9 +20,9 @@ export default function UnknownPersons() {
   const [linkTarget, setLinkTarget] = useState(null);
   const [registeredPersons, setRegisteredPersons] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState('all'); // all, mdr_contact, recent
+  const [filter, setFilter] = useState('all'); 
   
-  // Register modal state
+
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registerTarget, setRegisterTarget] = useState(null);
   const [registerName, setRegisterName] = useState('');

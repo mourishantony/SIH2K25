@@ -151,6 +151,12 @@ class ViewPipeline:
             color = (0, 200, 100) if identity != "Unknown" else (0, 0, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             
+            # Get face landmarks for quality validation (InsightFace provides 5-point landmarks)
+            face_landmarks = getattr(face, 'kps', None)  # kps = keypoints (5-point landmarks)
+            if face_landmarks is None:
+                face_landmarks = getattr(face, 'landmark', None)  # Alternative attribute name
+            face_bbox = (x1, y1, x2, y2)
+            
             if identity == "Unknown":
                 matched = self._match_face_to_track((x1, y1, x2, y2), tracks)
                 if matched is not None and unknown_tracker is not None:
@@ -164,6 +170,8 @@ class ViewPipeline:
                         face_score=face.det_score,
                         face_embedding=embedding,
                         monotonic_timestamp=timestamp,
+                        face_landmarks=face_landmarks,
+                        face_bbox=face_bbox,
                     )
                     
                     if state is not None:

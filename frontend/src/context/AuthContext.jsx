@@ -3,7 +3,7 @@ import { authAPI } from '../api';
 
 const AuthContext = createContext(null);
 
-// Role-based permissions mapping (matches backend)
+
 const ROLE_PERMISSIONS = {
   admin: [
     'dashboard', 'registered_persons', 'unknown_persons', 
@@ -17,7 +17,7 @@ const ROLE_PERMISSIONS = {
   ],
 };
 
-// Navigation items with their required permissions
+
 export const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', permission: 'dashboard', icon: 'LayoutDashboard' },
   { path: '/register', label: 'Register Person', permission: 'register_person', icon: 'UserPlus' },
@@ -71,23 +71,23 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  // Get permissions for current user
+ 
   const permissions = useMemo(() => {
     if (!user?.role) return [];
     return ROLE_PERMISSIONS[user.role] || [];
   }, [user]);
 
-  // Check if user has specific permission
+ 
   const hasPermission = (permission) => {
     return permissions.includes(permission);
   };
 
-  // Check if user is admin
+
   const isAdmin = useMemo(() => {
     return user?.role === 'admin';
   }, [user]);
 
-  // Get navigation items user can access
+ 
   const allowedNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => hasPermission(item.permission));
   }, [permissions]);
@@ -99,7 +99,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!token && !!user,
     login,
     logout,
-    // Role-based features
+ 
     permissions,
     hasPermission,
     isAdmin,

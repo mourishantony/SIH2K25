@@ -23,11 +23,10 @@ export default function MDRManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContacts, setSelectedContacts] = useState(null);
   
-  // Pathogen management state
   const [showPathogenModal, setShowPathogenModal] = useState(false);
   const [pathogenForm, setPathogenForm] = useState({ name: '', risk_factor: 1.0, incubation_days: 14, description: '' });
   const [editingPathogen, setEditingPathogen] = useState(null);
-  const [activeTab, setActiveTab] = useState('patients'); // 'patients' or 'pathogens'
+  const [activeTab, setActiveTab] = useState('patients'); 
 
   const fetchData = async () => {
     try {
@@ -37,7 +36,6 @@ export default function MDRManagement() {
         mdrAPI.getEligible(),
         pathogensAPI.getAll()
       ]);
-      // Backend returns {total, patients: [...]} and {total, eligible_patients: [...]}
       setMdrPatients(mdrRes.data.patients || mdrRes.data || []);
       setEligiblePersons(eligibleRes.data.eligible_patients || eligibleRes.data || []);
       setPathogens(pathogensRes.data || []);
@@ -81,14 +79,13 @@ export default function MDRManagement() {
   const viewContacts = async (name) => {
     try {
       const res = await mdrAPI.getContacts(name);
-      // Backend returns {mdr_patient, total_contacts, contacts: [...], summary}
+     
       setSelectedContacts({ name, contacts: res.data.contacts || res.data || [] });
     } catch (error) {
       toast.error('Failed to fetch contacts');
     }
   };
 
-  // Pathogen management functions
   const handleSavePathogen = async () => {
     try {
       if (editingPathogen) {

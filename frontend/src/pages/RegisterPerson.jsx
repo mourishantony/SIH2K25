@@ -5,7 +5,7 @@ import { Camera, Check, X, RefreshCw, User, Phone, MapPin, Save } from 'lucide-r
 import toast from 'react-hot-toast';
 
 export default function RegisterPerson() {
-  const [step, setStep] = useState(1); // 1: Person info, 2: Face capture
+  const [step, setStep] = useState(1); 
   const [personData, setPersonData] = useState({
     name: '',
     role: 'patient',
@@ -23,7 +23,7 @@ export default function RegisterPerson() {
   const webcamRef = useRef(null);
 
   useEffect(() => {
-    // Fetch face registration settings
+   
     faceAPI.getSettings().then(res => {
       setSettings(res.data);
     }).catch(err => {
@@ -94,12 +94,12 @@ export default function RegisterPerson() {
       const response = await faceAPI.uploadImages(
         createdPerson.name,
         capturedImages,
-        true // auto train
+        true 
       );
       
       toast.success(`Training started! ${response.data.stored_count} images uploaded.`);
       
-      // Reset form
+     
       setPersonData({ name: '', role: 'patient', phone: '', place: '', notes: '' });
       setCapturedImages([]);
       setCreatedPerson(null);

@@ -1,0 +1,974 @@
+[
+  {
+    "timestamp": "2025-12-02T17:44:20.798100",
+    "collision_id": "Person_0_Person_1",
+    "person1": "Person_0",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.406,
+    "duration_seconds": 2.3,
+    "frame_count": 26,
+    "iou": 0.198,
+    "distance_pixels": 242.3,
+    "frame_number": 26,
+    "bbox1": {
+      "x1": 389,
+      "y1": 501,
+      "x2": 816,
+      "y2": 1070,
+      "confidence": 0.915
+    },
+    "bbox2": {
+      "x1": 682,
+      "y1": 573,
+      "x2": 1002,
+      "y2": 1071,
+      "confidence": 0.854
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:22.401311",
+    "collision_id": "Person_0_Person_2",
+    "person1": "Person_0",
+    "person2": "Person_2",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.77,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.691,
+    "distance_pixels": 96.5,
+    "frame_number": 48,
+    "bbox1": {
+      "x1": 408,
+      "y1": 459,
+      "x2": 1039,
+      "y2": 1071,
+      "confidence": 0.662
+    },
+    "bbox2": {
+      "x1": 408,
+      "y1": 462,
+      "x2": 846,
+      "y2": 1071,
+      "confidence": 0.267
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:22.533404",
+    "collision_id": "Person_1_Person_2",
+    "person1": "Person_1",
+    "person2": "Person_2",
+    "risk_level": "HIGH",
+    "risk_score": 0.578,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.422,
+    "distance_pixels": 122.5,
+    "frame_number": 50,
+    "bbox1": {
+      "x1": 823,
+      "y1": 348,
+      "x2": 1042,
+      "y2": 999,
+      "confidence": 0.891
+    },
+    "bbox2": {
+      "x1": 623,
+      "y1": 259,
+      "x2": 1029,
+      "y2": 967,
+      "confidence": 0.376
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:25.561937",
+    "collision_id": "Person_0_Person_4",
+    "person1": "Person_0",
+    "person2": "Person_4",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.745,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.656,
+    "distance_pixels": 106.5,
+    "frame_number": 92,
+    "bbox1": {
+      "x1": 406,
+      "y1": 435,
+      "x2": 1041,
+      "y2": 1071,
+      "confidence": 0.631
+    },
+    "bbox2": {
+      "x1": 408,
+      "y1": 437,
+      "x2": 826,
+      "y2": 1071,
+      "confidence": 0.296
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:25.564088",
+    "collision_id": "Person_0_Person_3",
+    "person1": "Person_0",
+    "person2": "Person_3",
+    "risk_level": "HIGH",
+    "risk_score": 0.566,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.412,
+    "distance_pixels": 165.7,
+    "frame_number": 92,
+    "bbox1": {
+      "x1": 406,
+      "y1": 435,
+      "x2": 1041,
+      "y2": 1071,
+      "confidence": 0.631
+    },
+    "bbox2": {
+      "x1": 701,
+      "y1": 580,
+      "x2": 1044,
+      "y2": 1071,
+      "confidence": 0.504
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:26.059236",
+    "collision_id": "Person_4_Person_5",
+    "person1": "Person_4",
+    "person2": "Person_5",
+    "risk_level": "HIGH",
+    "risk_score": 0.688,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.58,
+    "distance_pixels": 129.7,
+    "frame_number": 99,
+    "bbox1": {
+      "x1": 393,
+      "y1": 447,
+      "x2": 1038,
+      "y2": 1071,
+      "confidence": 0.481
+    },
+    "bbox2": {
+      "x1": 391,
+      "y1": 465,
+      "x2": 781,
+      "y2": 1068,
+      "confidence": 0.415
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:26.059236",
+    "collision_id": "Person_0_Person_5",
+    "person1": "Person_5",
+    "person2": "Person_0",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.43,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.234,
+    "distance_pixels": 246.3,
+    "frame_number": 99,
+    "bbox1": {
+      "x1": 391,
+      "y1": 465,
+      "x2": 781,
+      "y2": 1068,
+      "confidence": 0.415
+    },
+    "bbox2": {
+      "x1": 625,
+      "y1": 439,
+      "x2": 1039,
+      "y2": 1069,
+      "confidence": 0.329
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:26.359220",
+    "collision_id": "Person_3_Person_4",
+    "person1": "Person_4",
+    "person2": "Person_3",
+    "risk_level": "HIGH",
+    "risk_score": 0.61,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.47,
+    "distance_pixels": 144.4,
+    "frame_number": 103,
+    "bbox1": {
+      "x1": 387,
+      "y1": 447,
+      "x2": 1038,
+      "y2": 1071,
+      "confidence": 0.453
+    },
+    "bbox2": {
+      "x1": 637,
+      "y1": 592,
+      "x2": 1039,
+      "y2": 1069,
+      "confidence": 0.25
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:27.599151",
+    "collision_id": "Person_1_Person_2",
+    "person1": "Person_2",
+    "person2": "Person_1",
+    "risk_level": "HIGH",
+    "risk_score": 0.59,
+    "duration_seconds": 2.8,
+    "frame_count": 39,
+    "iou": 0.438,
+    "distance_pixels": 121.8,
+    "frame_number": 119,
+    "bbox1": {
+      "x1": 636,
+      "y1": 304,
+      "x2": 1026,
+      "y2": 996,
+      "confidence": 0.913
+    },
+    "bbox2": {
+      "x1": 802,
+      "y1": 438,
+      "x2": 1042,
+      "y2": 1024,
+      "confidence": 0.829
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:27.675142",
+    "collision_id": "Person_3_Person_5",
+    "person1": "Person_3",
+    "person2": "Person_5",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.406,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.202,
+    "distance_pixels": 258.2,
+    "frame_number": 120,
+    "bbox1": {
+      "x1": 666,
+      "y1": 588,
+      "x2": 1037,
+      "y2": 1074,
+      "confidence": 0.816
+    },
+    "bbox2": {
+      "x1": 383,
+      "y1": 447,
+      "x2": 825,
+      "y2": 1068,
+      "confidence": 0.488
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:31.083873",
+    "collision_id": "Person_0_Person_3",
+    "person1": "Person_0",
+    "person2": "Person_3",
+    "risk_level": "HIGH",
+    "risk_score": 0.563,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.411,
+    "distance_pixels": 181.6,
+    "frame_number": 167,
+    "bbox1": {
+      "x1": 366,
+      "y1": 468,
+      "x2": 1065,
+      "y2": 1071,
+      "confidence": 0.685
+    },
+    "bbox2": {
+      "x1": 697,
+      "y1": 595,
+      "x2": 1074,
+      "y2": 1072,
+      "confidence": 0.439
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:31.274376",
+    "collision_id": "Person_0_Person_5",
+    "person1": "Person_5",
+    "person2": "Person_0",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.752,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.668,
+    "distance_pixels": 113.0,
+    "frame_number": 169,
+    "bbox1": {
+      "x1": 371,
+      "y1": 448,
+      "x2": 837,
+      "y2": 1069,
+      "confidence": 0.596
+    },
+    "bbox2": {
+      "x1": 372,
+      "y1": 445,
+      "x2": 1062,
+      "y2": 1071,
+      "confidence": 0.257
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:32.630000",
+    "collision_id": "Person_1_Person_2",
+    "person1": "Person_2",
+    "person2": "Person_1",
+    "risk_level": "HIGH",
+    "risk_score": 0.59,
+    "duration_seconds": 7.9,
+    "frame_count": 108,
+    "iou": 0.437,
+    "distance_pixels": 120.6,
+    "frame_number": 188,
+    "bbox1": {
+      "x1": 625,
+      "y1": 331,
+      "x2": 1012,
+      "y2": 1015,
+      "confidence": 0.832
+    },
+    "bbox2": {
+      "x1": 790,
+      "y1": 442,
+      "x2": 1047,
+      "y2": 1039,
+      "confidence": 0.795
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:33.068168",
+    "collision_id": "Person_1_Person_3",
+    "person1": "Person_1",
+    "person2": "Person_3",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.776,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.69,
+    "distance_pixels": 53.9,
+    "frame_number": 194,
+    "bbox1": {
+      "x1": 781,
+      "y1": 444,
+      "x2": 1027,
+      "y2": 1035,
+      "confidence": 0.775
+    },
+    "bbox2": {
+      "x1": 725,
+      "y1": 351,
+      "x2": 1032,
+      "y2": 1033,
+      "confidence": 0.313
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:33.071835",
+    "collision_id": "Person_2_Person_3",
+    "person1": "Person_2",
+    "person2": "Person_3",
+    "risk_level": "HIGH",
+    "risk_score": 0.662,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.536,
+    "distance_pixels": 97.8,
+    "frame_number": 194,
+    "bbox1": {
+      "x1": 595,
+      "y1": 328,
+      "x2": 973,
+      "y2": 1006,
+      "confidence": 0.806
+    },
+    "bbox2": {
+      "x1": 725,
+      "y1": 351,
+      "x2": 1032,
+      "y2": 1033,
+      "confidence": 0.313
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:33.213673",
+    "collision_id": "Person_0_Person_6",
+    "person1": "Person_0",
+    "person2": "Person_6",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.737,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.644,
+    "distance_pixels": 106.5,
+    "frame_number": 196,
+    "bbox1": {
+      "x1": 311,
+      "y1": 347,
+      "x2": 939,
+      "y2": 1069,
+      "confidence": 0.843
+    },
+    "bbox2": {
+      "x1": 316,
+      "y1": 346,
+      "x2": 721,
+      "y2": 1069,
+      "confidence": 0.264
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:34.459038",
+    "collision_id": "Person_3_Person_5",
+    "person1": "Person_3",
+    "person2": "Person_5",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.751,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.659,
+    "distance_pixels": 78.4,
+    "frame_number": 211,
+    "bbox1": {
+      "x1": 564,
+      "y1": 556,
+      "x2": 1062,
+      "y2": 1075,
+      "confidence": 0.926
+    },
+    "bbox2": {
+      "x1": 548,
+      "y1": 498,
+      "x2": 934,
+      "y2": 1071,
+      "confidence": 0.252
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:34.635637",
+    "collision_id": "Person_5_Person_6",
+    "person1": "Person_6",
+    "person2": "Person_5",
+    "risk_level": "HIGH",
+    "risk_score": 0.62,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.486,
+    "distance_pixels": 149.8,
+    "frame_number": 213,
+    "bbox1": {
+      "x1": 265,
+      "y1": 359,
+      "x2": 932,
+      "y2": 1065,
+      "confidence": 0.267
+    },
+    "bbox2": {
+      "x1": 534,
+      "y1": 488,
+      "x2": 932,
+      "y2": 1068,
+      "confidence": 0.264
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:34.637230",
+    "collision_id": "Person_3_Person_6",
+    "person1": "Person_3",
+    "person2": "Person_6",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.484,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.313,
+    "distance_pixels": 252.9,
+    "frame_number": 213,
+    "bbox1": {
+      "x1": 600,
+      "y1": 558,
+      "x2": 1059,
+      "y2": 1072,
+      "confidence": 0.806
+    },
+    "bbox2": {
+      "x1": 265,
+      "y1": 359,
+      "x2": 932,
+      "y2": 1065,
+      "confidence": 0.267
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:36.202523",
+    "collision_id": "Person_0_Person_3",
+    "person1": "Person_3",
+    "person2": "Person_0",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.408,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.213,
+    "distance_pixels": 300.3,
+    "frame_number": 234,
+    "bbox1": {
+      "x1": 562,
+      "y1": 543,
+      "x2": 1047,
+      "y2": 1075,
+      "confidence": 0.926
+    },
+    "bbox2": {
+      "x1": 274,
+      "y1": 367,
+      "x2": 762,
+      "y2": 1071,
+      "confidence": 0.781
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:37.704152",
+    "collision_id": "Person_1_Person_2",
+    "person1": "Person_2",
+    "person2": "Person_1",
+    "risk_level": "HIGH",
+    "risk_score": 0.562,
+    "duration_seconds": 12.9,
+    "frame_count": 175,
+    "iou": 0.4,
+    "distance_pixels": 133.6,
+    "frame_number": 255,
+    "bbox1": {
+      "x1": 621,
+      "y1": 351,
+      "x2": 1040,
+      "y2": 1026,
+      "confidence": 0.905
+    },
+    "bbox2": {
+      "x1": 823,
+      "y1": 466,
+      "x2": 1068,
+      "y2": 1047,
+      "confidence": 0.83
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:39.220388",
+    "collision_id": "Person_1_Person_4",
+    "person1": "Person_1",
+    "person2": "Person_4",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.761,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.67,
+    "distance_pixels": 55.5,
+    "frame_number": 276,
+    "bbox1": {
+      "x1": 820,
+      "y1": 454,
+      "x2": 1066,
+      "y2": 1047,
+      "confidence": 0.658
+    },
+    "bbox2": {
+      "x1": 753,
+      "y1": 363,
+      "x2": 1071,
+      "y2": 1046,
+      "confidence": 0.421
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:39.220388",
+    "collision_id": "Person_2_Person_4",
+    "person1": "Person_2",
+    "person2": "Person_4",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.494,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.308,
+    "distance_pixels": 155.5,
+    "frame_number": 276,
+    "bbox1": {
+      "x1": 617,
+      "y1": 346,
+      "x2": 899,
+      "y2": 1020,
+      "confidence": 0.713
+    },
+    "bbox2": {
+      "x1": 753,
+      "y1": 363,
+      "x2": 1071,
+      "y2": 1046,
+      "confidence": 0.421
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:39.701588",
+    "collision_id": "Person_3_Person_6",
+    "person1": "Person_3",
+    "person2": "Person_6",
+    "risk_level": "HIGH",
+    "risk_score": 0.505,
+    "duration_seconds": 0.1,
+    "frame_count": 2,
+    "iou": 0.338,
+    "distance_pixels": 234.5,
+    "frame_number": 282,
+    "bbox1": {
+      "x1": 583,
+      "y1": 546,
+      "x2": 1051,
+      "y2": 1071,
+      "confidence": 0.934
+    },
+    "bbox2": {
+      "x1": 285,
+      "y1": 357,
+      "x2": 921,
+      "y2": 1068,
+      "confidence": 0.879
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:41.188451",
+    "collision_id": "Person_0_Person_6",
+    "person1": "Person_6",
+    "person2": "Person_0",
+    "risk_level": "CRITICAL",
+    "risk_score": 0.724,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.626,
+    "distance_pixels": 102.5,
+    "frame_number": 302,
+    "bbox1": {
+      "x1": 314,
+      "y1": 357,
+      "x2": 922,
+      "y2": 1069,
+      "confidence": 0.669
+    },
+    "bbox2": {
+      "x1": 325,
+      "y1": 355,
+      "x2": 706,
+      "y2": 1069,
+      "confidence": 0.588
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:41.896301",
+    "collision_id": "Person_0_Person_3",
+    "person1": "Person_3",
+    "person2": "Person_0",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.415,
+    "duration_seconds": 0.2,
+    "frame_count": 3,
+    "iou": 0.219,
+    "distance_pixels": 282.7,
+    "frame_number": 310,
+    "bbox1": {
+      "x1": 591,
+      "y1": 538,
+      "x2": 1047,
+      "y2": 1072,
+      "confidence": 0.913
+    },
+    "bbox2": {
+      "x1": 317,
+      "y1": 354,
+      "x2": 787,
+      "y2": 1070,
+      "confidence": 0.859
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:42.912069",
+    "collision_id": "Person_1_Person_2",
+    "person1": "Person_2",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.448,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.245,
+    "distance_pixels": 173.8,
+    "frame_number": 323,
+    "bbox1": {
+      "x1": 612,
+      "y1": 366,
+      "x2": 885,
+      "y2": 1014,
+      "confidence": 0.683
+    },
+    "bbox2": {
+      "x1": 767,
+      "y1": 360,
+      "x2": 1077,
+      "y2": 1041,
+      "confidence": 0.575
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:44.241419",
+    "collision_id": "Person_2_Person_4",
+    "person1": "Person_4",
+    "person2": "Person_2",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.44,
+    "duration_seconds": 1.6,
+    "frame_count": 22,
+    "iou": 0.235,
+    "distance_pixels": 181.4,
+    "frame_number": 341,
+    "bbox1": {
+      "x1": 834,
+      "y1": 432,
+      "x2": 1077,
+      "y2": 1038,
+      "confidence": 0.847
+    },
+    "bbox2": {
+      "x1": 609,
+      "y1": 339,
+      "x2": 960,
+      "y2": 1010,
+      "confidence": 0.819
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:44.747361",
+    "collision_id": "Person_3_Person_6",
+    "person1": "Person_3",
+    "person2": "Person_6",
+    "risk_level": "HIGH",
+    "risk_score": 0.52,
+    "duration_seconds": 0.1,
+    "frame_count": 2,
+    "iou": 0.356,
+    "distance_pixels": 209.1,
+    "frame_number": 348,
+    "bbox1": {
+      "x1": 657,
+      "y1": 549,
+      "x2": 1095,
+      "y2": 1077,
+      "confidence": 0.916
+    },
+    "bbox2": {
+      "x1": 403,
+      "y1": 360,
+      "x2": 979,
+      "y2": 1071,
+      "confidence": 0.82
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:46.741204",
+    "collision_id": "Person_0_Person_6",
+    "person1": "Person_6",
+    "person2": "Person_0",
+    "risk_level": "HIGH",
+    "risk_score": 0.644,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.524,
+    "distance_pixels": 166.6,
+    "frame_number": 376,
+    "bbox1": {
+      "x1": 429,
+      "y1": 337,
+      "x2": 1011,
+      "y2": 1071,
+      "confidence": 0.695
+    },
+    "bbox2": {
+      "x1": 423,
+      "y1": 343,
+      "x2": 1008,
+      "y2": 732,
+      "confidence": 0.285
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:47.106981",
+    "collision_id": "Person_0_Person_3",
+    "person1": "Person_3",
+    "person2": "Person_0",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.439,
+    "duration_seconds": 0.1,
+    "frame_count": 2,
+    "iou": 0.248,
+    "distance_pixels": 254.9,
+    "frame_number": 381,
+    "bbox1": {
+      "x1": 708,
+      "y1": 521,
+      "x2": 1126,
+      "y2": 1071,
+      "confidence": 0.924
+    },
+    "bbox2": {
+      "x1": 448,
+      "y1": 314,
+      "x2": 921,
+      "y2": 1069,
+      "confidence": 0.801
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:49.256706",
+    "collision_id": "Person_2_Person_4",
+    "person1": "Person_2",
+    "person2": "Person_4",
+    "risk_level": "HIGH",
+    "risk_score": 0.579,
+    "duration_seconds": 6.6,
+    "frame_count": 92,
+    "iou": 0.424,
+    "distance_pixels": 131.8,
+    "frame_number": 411,
+    "bbox1": {
+      "x1": 671,
+      "y1": 286,
+      "x2": 1038,
+      "y2": 1008,
+      "confidence": 0.9
+    },
+    "bbox2": {
+      "x1": 819,
+      "y1": 450,
+      "x2": 1065,
+      "y2": 1041,
+      "confidence": 0.867
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:51.278974",
+    "collision_id": "Person_6_Person_7",
+    "person1": "Person_6",
+    "person2": "Person_7",
+    "risk_level": "HIGH",
+    "risk_score": 0.569,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.417,
+    "distance_pixels": 165.6,
+    "frame_number": 440,
+    "bbox1": {
+      "x1": 408,
+      "y1": 333,
+      "x2": 1031,
+      "y2": 1068,
+      "confidence": 0.722
+    },
+    "bbox2": {
+      "x1": 710,
+      "y1": 460,
+      "x2": 1038,
+      "y2": 1060,
+      "confidence": 0.275
+    }
+  },
+  {
+    "timestamp": "2025-12-02T17:44:51.347786",
+    "collision_id": "Person_0_Person_7",
+    "person1": "Person_0",
+    "person2": "Person_7",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.419,
+    "duration_seconds": 0.0,
+    "frame_count": 1,
+    "iou": 0.218,
+    "distance_pixels": 241.8,
+    "frame_number": 441,
+    "bbox1": {
+      "x1": 389,
+      "y1": 333,
+      "x2": 871,
+      "y2": 1066,
+      "confidence": 0.738
+    },
+    "bbox2": {
+      "x1": 708,
+      "y1": 450,
+      "x2": 1026,
+      "y2": 1045,
+      "confidence": 0.41
+    }
+  },
+  {
+    "timestamp": "2025-12-02T21:03:48.817466",
+    "collision_id": "Person_0_Person_1",
+    "person1": "Person_0",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.393,
+    "duration_seconds": 0.0,
+    "frame_count": 0,
+    "iou": 0.176,
+    "distance_pixels": 224.1,
+    "frame_number": 1,
+    "bbox1": {
+      "x1": 366,
+      "y1": 512,
+      "x2": 742,
+      "y2": 1070,
+      "confidence": 0.908
+    },
+    "bbox2": {
+      "x1": 644,
+      "y1": 520,
+      "x2": 912,
+      "y2": 1078,
+      "confidence": 0.898
+    }
+  },
+  {
+    "timestamp": "2025-12-02T21:04:38.526674",
+    "collision_id": "Person_0_Person_1",
+    "person1": "Person_0",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.393,
+    "duration_seconds": 0.0,
+    "frame_count": 0,
+    "iou": 0.176,
+    "distance_pixels": 224.1,
+    "frame_number": 1,
+    "bbox1": {
+      "x1": 366,
+      "y1": 512,
+      "x2": 742,
+      "y2": 1070,
+      "confidence": 0.908
+    },
+    "bbox2": {
+      "x1": 644,
+      "y1": 520,
+      "x2": 912,
+      "y2": 1078,
+      "confidence": 0.898
+    }
+  }
+]

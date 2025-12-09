@@ -21,7 +21,7 @@ export default function AlertDetail() {
   const fetchAlert = async () => {
     try {
       setLoading(true);
-      // Get all alerts and find the one with matching ID
+      
       const res = await alertsAPI.getAll();
       const alerts = res.data.alerts || res.data || [];
       const foundAlert = alerts.find(a => (a.id === id || a._id === id));

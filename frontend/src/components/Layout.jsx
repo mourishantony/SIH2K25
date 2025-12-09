@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Icon mapping for dynamic navigation
+
 const ICON_MAP = {
   LayoutDashboard,
   UserPlus,
@@ -39,9 +39,9 @@ export default function Layout() {
   const [showAlertPopup, setShowAlertPopup] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
-  // Fetch unread alerts count (only if user has alerts permission)
+
   useEffect(() => {
-    // Skip fetching if user doesn't have alerts permission
+   
     if (!hasPermission('alerts')) {
       setUnreadAlerts(0);
       setRecentAlerts([]);
@@ -53,12 +53,12 @@ export default function Layout() {
         const response = await alertsAPI.getUnread();
         const alerts = response.data;
         
-        // Handle both array and object response formats
+        
         if (Array.isArray(alerts)) {
           setUnreadAlerts(alerts.length);
           setRecentAlerts(alerts.slice(0, 5));
           
-          // Show popup for recent alerts
+         
           if (alerts.length > 0) {
             const latestAlert = alerts[0];
             const alertTime = new Date(latestAlert.timestamp || latestAlert.created_at);
@@ -92,7 +92,7 @@ export default function Layout() {
 
     fetchUnreadAlerts();
     
-    // Poll for new alerts every 30 seconds
+    
     const interval = setInterval(fetchUnreadAlerts, 30000);
     return () => clearInterval(interval);
   }, [hasPermission]);

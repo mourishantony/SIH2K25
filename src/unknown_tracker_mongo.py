@@ -30,6 +30,11 @@ from database import (
 MIN_FACE_BLUR_THRESHOLD = 100.0  # Laplacian variance threshold (higher = sharper)
 MIN_FACE_SIZE = 40  # Minimum face size in pixels (width or height)
 MIN_FACE_DETECTION_SCORE = 0.5  # Minimum detection confidence
+MIN_EMBEDDING_NORM = 0.3  # Minimum embedding vector norm (low = poor face quality)
+MAX_YAW_ANGLE = 45.0  # Maximum yaw angle in degrees (side profile threshold)
+MAX_PITCH_ANGLE = 35.0  # Maximum pitch angle in degrees (looking up/down threshold)
+MIN_FACE_SYMMETRY = 0.4  # Minimum face symmetry ratio (1.0 = perfectly symmetric)
+MIN_LANDMARK_CONFIDENCE = 0.6  # Minimum landmark detection confidence
 
 
 def calculate_blur_score(image: np.ndarray) -> float:
@@ -60,21 +65,239 @@ def calculate_blur_score(image: np.ndarray) -> float:
     return float(variance)
 
 
+def estimate_face_pose_from_landmarks(landmarks: np.ndarray, face_bbox: Tuple[int, int, int, int]) -> Tuple[float, float, float]:
+    """Estimate face pose (yaw, pitch, roll) from 5-point facial landmarks.
+    
+    InsightFace provides 5 landmarks: left_eye, right_eye, nose, left_mouth, right_mouth
+    
+    Args:
+        landmarks: 5x2 array of facial landmark coordinates
+        face_bbox: Face bounding box (x1, y1, x2, y2)
+        
+    Returns:
+        Tuple of (yaw, pitch, roll) angles in degrees
+    """
+    if landmarks is None or len(landmarks) < 5:
+        return 0.0, 0.0, 0.0
+    
+    x1, y1, x2, y2 = face_bbox
+    face_width = x2 - x1
+    face_height = y2 - y1
+    
+    if face_width <= 0 or face_height <= 0:
+        return 0.0, 0.0, 0.0
+    
+    # Extract landmark points
+    left_eye = landmarks[0]
+    right_eye = landmarks[1]
+    nose = landmarks[2]
+    left_mouth = landmarks[3]
+    right_mouth = landmarks[4]
+    
+    # Calculate eye center
+    eye_center_x = (left_eye[0] + right_eye[0]) / 2
+    eye_center_y = (left_eye[1] + right_eye[1]) / 2
+    
+    # Calculate mouth center
+    mouth_center_x = (left_mouth[0] + right_mouth[0]) / 2
+    mouth_center_y = (left_mouth[1] + right_mouth[1]) / 2
+    
+    # Calculate face center
+    face_center_x = (x1 + x2) / 2
+    face_center_y = (y1 + y2) / 2
+    
+    # YAW: Estimate based on nose position relative to eye center
+    # If nose is to the left/right of eye center, face is turned
+    eye_distance = np.linalg.norm(right_eye - left_eye)
+    if eye_distance > 0:
+        nose_offset = (nose[0] - eye_center_x) / eye_distance
+        # Map nose offset to approximate yaw angle
+        yaw = np.degrees(np.arcsin(np.clip(nose_offset * 0.5, -1.0, 1.0))) * 2
+    else:
+        yaw = 0.0
+    
+    # PITCH: Estimate based on nose position relative to eye-mouth line
+    vertical_distance = mouth_center_y - eye_center_y
+    if vertical_distance > 0:
+        expected_nose_y = eye_center_y + vertical_distance * 0.4
+        nose_y_offset = (nose[1] - expected_nose_y) / vertical_distance
+        pitch = np.degrees(np.arctan(nose_y_offset)) * 1.5
+    else:
+        pitch = 0.0
+    
+    # ROLL: Estimate based on eye line angle
+    eye_vector = right_eye - left_eye
+    roll = np.degrees(np.arctan2(eye_vector[1], eye_vector[0]))
+    
+    return float(yaw), float(pitch), float(roll)
+
+
+def calculate_face_symmetry(landmarks: np.ndarray, face_bbox: Tuple[int, int, int, int]) -> float:
+    """Calculate face symmetry score from landmarks.
+    
+    Symmetric faces (frontal view) should have eyes and mouth corners 
+    equidistant from the center vertical line.
+    
+    Args:
+        landmarks: 5x2 array of facial landmark coordinates
+        face_bbox: Face bounding box (x1, y1, x2, y2)
+        
+    Returns:
+        Symmetry score between 0.0 (asymmetric) and 1.0 (perfectly symmetric)
+    """
+    if landmarks is None or len(landmarks) < 5:
+        return 0.0
+    
+    x1, y1, x2, y2 = face_bbox
+    face_center_x = (x1 + x2) / 2
+    face_width = x2 - x1
+    
+    if face_width <= 0:
+        return 0.0
+    
+    left_eye = landmarks[0]
+    right_eye = landmarks[1]
+    left_mouth = landmarks[3]
+    right_mouth = landmarks[4]
+    
+    # Calculate distances from center for each pair
+    left_eye_dist = abs(left_eye[0] - face_center_x)
+    right_eye_dist = abs(right_eye[0] - face_center_x)
+    left_mouth_dist = abs(left_mouth[0] - face_center_x)
+    right_mouth_dist = abs(right_mouth[0] - face_center_x)
+    
+    # Calculate symmetry ratios (1.0 = perfectly symmetric)
+    eye_symmetry = min(left_eye_dist, right_eye_dist) / max(left_eye_dist, right_eye_dist) if max(left_eye_dist, right_eye_dist) > 0 else 0
+    mouth_symmetry = min(left_mouth_dist, right_mouth_dist) / max(left_mouth_dist, right_mouth_dist) if max(left_mouth_dist, right_mouth_dist) > 0 else 0
+    
+    # Average symmetry score
+    symmetry = (eye_symmetry + mouth_symmetry) / 2
+    
+    return float(symmetry)
+
+
+def are_landmarks_valid(landmarks: np.ndarray, face_bbox: Tuple[int, int, int, int]) -> Tuple[bool, str]:
+    """Check if facial landmarks indicate a properly visible face.
+    
+    This function validates that:
+    1. All 5 landmarks are present and within the face bounding box
+    2. Landmarks are in expected relative positions (eyes above nose, nose above mouth)
+    3. Eye distance is reasonable relative to face width
+    
+    Args:
+        landmarks: 5x2 array of facial landmark coordinates
+        face_bbox: Face bounding box (x1, y1, x2, y2)
+        
+    Returns:
+        Tuple of (is_valid, reason)
+    """
+    if landmarks is None:
+        return False, "no_landmarks"
+    
+    if len(landmarks) < 5:
+        return False, f"insufficient_landmarks:{len(landmarks)}"
+    
+    x1, y1, x2, y2 = face_bbox
+    face_width = x2 - x1
+    face_height = y2 - y1
+    
+    if face_width <= 0 or face_height <= 0:
+        return False, "invalid_bbox"
+    
+    left_eye = landmarks[0]
+    right_eye = landmarks[1]
+    nose = landmarks[2]
+    left_mouth = landmarks[3]
+    right_mouth = landmarks[4]
+    
+    # Expand bbox slightly for landmark check (landmarks can be slightly outside)
+    margin = max(face_width, face_height) * 0.1
+    x1_m, y1_m = x1 - margin, y1 - margin
+    x2_m, y2_m = x2 + margin, y2 + margin
+    
+    # Check if all landmarks are within/near the bounding box
+    for i, (lx, ly) in enumerate([left_eye, right_eye, nose, left_mouth, right_mouth]):
+        if not (x1_m <= lx <= x2_m and y1_m <= ly <= y2_m):
+            landmark_names = ["left_eye", "right_eye", "nose", "left_mouth", "right_mouth"]
+            return False, f"landmark_outside_bbox:{landmark_names[i]}"
+    
+    # Check relative positions
+    eye_center_y = (left_eye[1] + right_eye[1]) / 2
+    mouth_center_y = (left_mouth[1] + right_mouth[1]) / 2
+    
+    # Eyes should be above nose, nose above mouth
+    if not (eye_center_y < nose[1] < mouth_center_y):
+        return False, "invalid_landmark_order"
+    
+    # Eye distance should be reasonable (not too small indicating side profile)
+    eye_distance = np.linalg.norm(right_eye - left_eye)
+    min_eye_distance = face_width * 0.15  # At least 15% of face width
+    if eye_distance < min_eye_distance:
+        return False, f"eyes_too_close:{eye_distance:.1f}<{min_eye_distance:.1f}"
+    
+    return True, "landmarks_valid"
+
+
+def is_embedding_quality_acceptable(embedding: Optional[np.ndarray], min_norm: float = MIN_EMBEDDING_NORM) -> Tuple[bool, str]:
+    """Check if face embedding indicates good face quality.
+    
+    Poor quality faces (blurry, occluded, side profiles) often produce
+    embeddings with low norms or high variance.
+    
+    Args:
+        embedding: Face embedding vector (512-dimensional)
+        min_norm: Minimum acceptable embedding norm
+        
+    Returns:
+        Tuple of (is_acceptable, reason)
+    """
+    if embedding is None:
+        return False, "no_embedding"
+    
+    # Check embedding norm (should be normalized to ~1.0, but quality affects this)
+    norm = np.linalg.norm(embedding)
+    if norm < min_norm:
+        return False, f"low_embedding_norm:{norm:.3f}<{min_norm}"
+    
+    return True, f"embedding_ok:norm={norm:.3f}"
+
+
 def is_face_quality_acceptable(
     face_crop: Optional[np.ndarray],
     face_score: float,
+    face_landmarks: Optional[np.ndarray] = None,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+    face_embedding: Optional[np.ndarray] = None,
     min_blur_threshold: float = MIN_FACE_BLUR_THRESHOLD,
     min_face_size: int = MIN_FACE_SIZE,
     min_detection_score: float = MIN_FACE_DETECTION_SCORE,
+    max_yaw: float = MAX_YAW_ANGLE,
+    max_pitch: float = MAX_PITCH_ANGLE,
+    min_symmetry: float = MIN_FACE_SYMMETRY,
 ) -> Tuple[bool, str]:
     """Check if face quality is acceptable for unknown person registration.
+    
+    This comprehensive check ensures only clear, frontal faces are stored:
+    1. Face detection confidence score
+    2. Minimum face size in pixels
+    3. Image blur (Laplacian variance)
+    4. Face pose (yaw/pitch angles) - rejects side profiles
+    5. Face symmetry - ensures frontal view
+    6. Landmark validity - ensures proper face structure
+    7. Embedding quality - validates face recognition quality
     
     Args:
         face_crop: Face image crop
         face_score: Face detection confidence score
+        face_landmarks: 5-point facial landmarks from InsightFace (optional)
+        face_bbox: Face bounding box (x1, y1, x2, y2) (optional)
+        face_embedding: Face embedding vector (optional)
         min_blur_threshold: Minimum blur score (Laplacian variance)
         min_face_size: Minimum face size in pixels
         min_detection_score: Minimum detection confidence
+        max_yaw: Maximum yaw angle (side-to-side)
+        max_pitch: Maximum pitch angle (up-down)
+        min_symmetry: Minimum face symmetry ratio
         
     Returns:
         Tuple of (is_acceptable, reason)
@@ -95,6 +318,35 @@ def is_face_quality_acceptable(
     blur_score = calculate_blur_score(face_crop)
     if blur_score < min_blur_threshold:
         return False, f"too_blurry:{blur_score:.1f}<{min_blur_threshold}"
+    
+    # If landmarks and bbox are provided, perform additional checks
+    if face_landmarks is not None and face_bbox is not None:
+        # Validate landmarks
+        landmarks_valid, landmarks_reason = are_landmarks_valid(face_landmarks, face_bbox)
+        if not landmarks_valid:
+            return False, f"invalid_face_structure:{landmarks_reason}"
+        
+        # Estimate face pose
+        yaw, pitch, roll = estimate_face_pose_from_landmarks(face_landmarks, face_bbox)
+        
+        # Check yaw angle (side profile)
+        if abs(yaw) > max_yaw:
+            return False, f"side_profile:yaw={yaw:.1f}>{max_yaw}"
+        
+        # Check pitch angle (looking up/down)
+        if abs(pitch) > max_pitch:
+            return False, f"extreme_pitch:{pitch:.1f}>{max_pitch}"
+        
+        # Check face symmetry
+        symmetry = calculate_face_symmetry(face_landmarks, face_bbox)
+        if symmetry < min_symmetry:
+            return False, f"asymmetric_face:{symmetry:.2f}<{min_symmetry}"
+    
+    # Check embedding quality if provided
+    if face_embedding is not None:
+        embedding_ok, embedding_reason = is_embedding_quality_acceptable(face_embedding)
+        if not embedding_ok:
+            return False, embedding_reason
     
     return True, f"ok:blur={blur_score:.1f},size={w}x{h},score={face_score:.2f}"
 
@@ -177,10 +429,13 @@ class UnknownPersonTracker:
         face_score: float,
         face_embedding: Optional[np.ndarray],
         monotonic_timestamp: float,
+        face_landmarks: Optional[np.ndarray] = None,
+        face_bbox: Optional[Tuple[int, int, int, int]] = None,
     ) -> Optional[UnknownPersonState]:
         """Register or update an unknown person.
         
-        Only registers unknown persons with clear, non-blurry face images.
+        Only registers unknown persons with clear, frontal, non-blurry face images.
+        Rejects side profiles, back of heads, occluded faces, and blurry images.
         
         Args:
             track_id: Track ID from object tracker
@@ -188,6 +443,8 @@ class UnknownPersonTracker:
             face_score: Face detection confidence score
             face_embedding: Face embedding vector
             monotonic_timestamp: time.monotonic() value for duration calculations
+            face_landmarks: 5-point facial landmarks from InsightFace (optional)
+            face_bbox: Face bounding box (x1, y1, x2, y2) for landmark validation (optional)
             
         Returns:
             UnknownPersonState if registered/updated, None if face quality is too low
@@ -202,7 +459,12 @@ class UnknownPersonTracker:
             
             # Update face snapshot if better quality AND acceptable quality
             if face_crop is not None and face_score > state.best_face_score:
-                is_acceptable, reason = is_face_quality_acceptable(face_crop, face_score)
+                is_acceptable, reason = is_face_quality_acceptable(
+                    face_crop, face_score,
+                    face_landmarks=face_landmarks,
+                    face_bbox=face_bbox,
+                    face_embedding=face_embedding,
+                )
                 if is_acceptable:
                     state.best_face_snapshot = face_crop.copy()
                     state.best_face_score = face_score
@@ -211,10 +473,17 @@ class UnknownPersonTracker:
             
             return state
         
-        # Check face quality BEFORE creating new unknown
-        is_acceptable, reason = is_face_quality_acceptable(face_crop, face_score)
+        # Check face quality BEFORE creating new unknown (with full validation)
+        is_acceptable, reason = is_face_quality_acceptable(
+            face_crop, face_score,
+            face_landmarks=face_landmarks,
+            face_bbox=face_bbox,
+            face_embedding=face_embedding,
+        )
         if not is_acceptable:
             # Face quality too low - don't register as unknown
+            # Log rejection reason for debugging
+            rprint(f"[dim]Face rejected:[/] {reason}")
             return None
         
         # Try to match to existing unknown by embedding

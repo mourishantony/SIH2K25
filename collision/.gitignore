@@ -1,0 +1,18 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.conda
+
+# Face recognition files (not needed for collision detect
+
+# GPU environment and documentation
+venv_gpu/
+*.md
+!README.md
+*.bat
+
+# Video files (too large for Git)
+*.mp4
+*.avi
+*.mov
