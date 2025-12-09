@@ -52,8 +52,11 @@ class PersonTracker:
         embedder_model: str = "osnet_x0_25",
         nms_iou: float = 0.35,
         box_shrink: float = 0.1,
+        device: Optional[str] = None,
     ) -> None:
         self.detector = YOLO(model_path)
+        if device is not None:
+            self.detector.to(device)
         self.det_conf = detection_confidence
         self.nms_iou = max(0.05, min(0.9, nms_iou))
         self.box_shrink = max(0.0, min(0.4, box_shrink))

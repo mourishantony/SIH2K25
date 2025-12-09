@@ -17,3 +17,5 @@ frontend/package-lock.json
 *.pt
 *.pth
 *.onnx
+
+collision/src

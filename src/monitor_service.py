@@ -222,7 +222,7 @@ class ViewPipeline:
             if assigned is None:
                 # Unrecognized person - try to get Unknown ID from unknown_tracker
                 # Generate a consistent Unknown ID based on track
-                unknown_id = f"Unknown_{track.track_id:03d}"
+                unknown_id = f"Unknown_{int(track.track_id):03d}"
                 color = (255, 191, 0)  # Cyan/Yellow for unrecognized
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, unknown_id, (x1, max(y1 - 10, 20)),
@@ -457,12 +457,14 @@ class ContactMonitorService:
         print(f"[MonitorService] Initialized - mode={self.mode}, mdr_patients={len(self.mdr_patients)}")
 
     def _build_tracker(self) -> PersonTracker:
+        use_gpu = recognition_settings.reid_embedder_gpu or self.use_gpu
         return PersonTracker(
             model_path=str(recognition_settings.reid_model_path or "yolov8n.pt"),
             detection_confidence=recognition_settings.reid_detector_conf,
-            embedder_gpu=recognition_settings.reid_embedder_gpu or self.use_gpu,
+            embedder_gpu=use_gpu,
             nms_iou=recognition_settings.reid_nms_iou,
             box_shrink=recognition_settings.reid_box_shrink,
+            device='cuda' if use_gpu else None,
         )
 
     def cleanup(self):
