@@ -39,8 +39,15 @@ export default function Layout() {
   const [showAlertPopup, setShowAlertPopup] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
-  // Fetch unread alerts count
+  // Fetch unread alerts count (only if user has alerts permission)
   useEffect(() => {
+    // Skip fetching if user doesn't have alerts permission
+    if (!hasPermission('alerts')) {
+      setUnreadAlerts(0);
+      setRecentAlerts([]);
+      return;
+    }
+
     const fetchUnreadAlerts = async () => {
       try {
         const response = await alertsAPI.getUnread();
@@ -88,7 +95,7 @@ export default function Layout() {
     // Poll for new alerts every 30 seconds
     const interval = setInterval(fetchUnreadAlerts, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasPermission]);
 
   const handleLogout = () => {
     logout();
@@ -234,6 +241,11 @@ export default function Layout() {
                                 </p>
                                 <p className="text-xs text-gray-500">
                                   {alert.contact_type || 'Contact'} • {alert.duration_seconds ? `${alert.duration_seconds}s` : 'N/A'}
+                                  {(alert.min_distance_meters !== undefined && alert.min_distance_meters !== null) 
+                                    ? ` • ${alert.min_distance_meters.toFixed(2)}m`
+                                    : (alert.distance_meters !== undefined && alert.distance_meters !== null)
+                                      ? ` • ${alert.distance_meters.toFixed(2)}m`
+                                      : ''}
                                 </p>
                               </div>
                             </div>

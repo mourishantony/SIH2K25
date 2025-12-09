@@ -559,6 +559,9 @@ export default function MDRManagement() {
                         Duration
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Distance
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Risk %
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -580,6 +583,13 @@ export default function MDRManagement() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">
                           {contact.duration_seconds ? `${Math.round(contact.duration_seconds)}s` : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {contact.min_distance_meters !== undefined && contact.min_distance_meters !== null
+                            ? `${contact.min_distance_meters.toFixed(2)}m`
+                            : contact.distance_meters !== undefined && contact.distance_meters !== null
+                              ? `${contact.distance_meters.toFixed(2)}m`
+                              : 'N/A'}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${

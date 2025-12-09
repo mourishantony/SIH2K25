@@ -220,9 +220,8 @@ class ViewPipeline:
             assigned = self.track_identities.get(track.track_id)
             
             if assigned is None:
-                # Unrecognized person - try to get Unknown ID from unknown_tracker
-                # Generate a consistent Unknown ID based on track
-                unknown_id = f"Unknown_{track.track_id:03d}"
+                # Unrecognized person - show as Unknown with track ID
+                unknown_id = f"Unknown_{track.track_id}"
                 color = (255, 191, 0)  # Cyan/Yellow for unrecognized
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, unknown_id, (x1, max(y1 - 10, 20)),

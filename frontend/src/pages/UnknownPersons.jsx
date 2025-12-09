@@ -560,6 +560,16 @@ export default function UnknownPersons() {
                             </p>
                             <p className="text-sm text-gray-500">Duration</p>
                           </div>
+                          <div>
+                            <p className="text-lg font-semibold text-gray-800">
+                              {contact.min_distance_meters !== undefined && contact.min_distance_meters !== null
+                                ? `${contact.min_distance_meters.toFixed(2)}m`
+                                : contact.distance_meters !== undefined && contact.distance_meters !== null
+                                  ? `${contact.distance_meters.toFixed(2)}m`
+                                  : 'N/A'}
+                            </p>
+                            <p className="text-sm text-gray-500">Distance</p>
+                          </div>
                         </div>
                       </div>
                       {/* Risk progress bar */}
