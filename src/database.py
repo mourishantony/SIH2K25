@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import ssl
 from datetime import datetime
 from typing import Optional
 
@@ -9,6 +10,13 @@ from dotenv import load_dotenv
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.database import Database
 from pymongo.collection import Collection
+
+# Try to import certifi for SSL certificates
+try:
+    import certifi
+    CA_FILE = certifi.where()
+except ImportError:
+    CA_FILE = None
 
 # Load environment variables
 from pathlib import Path
@@ -28,7 +36,22 @@ def get_client() -> MongoClient:
     """Get or create MongoDB client instance."""
     global _client
     if _client is None:
-        _client = MongoClient(MONGODB_URI)
+        # Build connection options for MongoDB Atlas
+        options = {
+            "serverSelectionTimeoutMS": 30000,
+            "connectTimeoutMS": 30000,
+            "socketTimeoutMS": 30000,
+        }
+        
+        # Add SSL options for Atlas connections
+        if "mongodb+srv" in MONGODB_URI or "mongodb.net" in MONGODB_URI:
+            if CA_FILE:
+                options["tlsCAFile"] = CA_FILE
+            else:
+                # Fallback: disable certificate verification (not recommended for production)
+                options["tlsAllowInvalidCertificates"] = True
+        
+        _client = MongoClient(MONGODB_URI, **options)
     return _client
 
 

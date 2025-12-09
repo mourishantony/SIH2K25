@@ -190,7 +190,7 @@ async def retrain_face(
 @router.get("/status/{person_name}")
 async def get_training_status_endpoint(
     person_name: str,
-    current_user: dict = Depends(require_permission("register_person"))
+    current_user: dict = Depends(require_permission("registered_persons"))
 ):
     """Get training status for a person."""
     persons = get_persons_collection()

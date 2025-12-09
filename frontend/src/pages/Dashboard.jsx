@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { dashboardAPI, alertsAPI } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { 
   Users, 
   UserCheck, 
@@ -32,6 +33,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
+  const { hasPermission } = useAuth();
   const [stats, setStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [mdrSummary, setMDRSummary] = useState([]);
@@ -403,24 +405,31 @@ export default function Dashboard() {
       <div className="card">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link to="/register-person" className="p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-center">
+          {hasPermission('register_person') && (
+          <Link to="/register" className="p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-center">
             <UserCheck className="h-8 w-8 text-primary-600 mx-auto mb-2" />
             <p className="font-medium text-gray-800">Register Person</p>
             <p className="text-sm text-gray-500">Add new patient/doctor</p>
           </Link>
+          )}
           
+          {hasPermission('registered_persons') && (
           <Link to="/persons" className="p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-center">
             <Users className="h-8 w-8 text-primary-600 mx-auto mb-2" />
             <p className="font-medium text-gray-800">View Persons</p>
             <p className="text-sm text-gray-500">Manage registered persons</p>
           </Link>
+          )}
           
+          {hasPermission('mdr_management') && (
           <Link to="/mdr" className="p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-danger-300 hover:bg-danger-50 transition-colors text-center">
             <AlertTriangle className="h-8 w-8 text-danger-600 mx-auto mb-2" />
             <p className="font-medium text-gray-800">MDR Management</p>
             <p className="text-sm text-gray-500">Mark MDR patients</p>
           </Link>
+          )}
           
+          {hasPermission('alerts') && (
           <Link to="/alerts" className="p-4 rounded-lg border-2 border-dashed border-gray-200 hover:border-warning-300 hover:bg-warning-50 transition-colors text-center relative">
             <Bell className="h-8 w-8 text-warning-600 mx-auto mb-2" />
             <p className="font-medium text-gray-800">View Alerts</p>
@@ -431,6 +440,7 @@ export default function Dashboard() {
               </span>
             )}
           </Link>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { personsAPI, faceAPI } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { 
   Search, Filter, Plus, Edit, Trash2, User, 
   Phone, MapPin, Check, X, RefreshCw, Eye
@@ -9,6 +10,7 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
 export default function PersonsList() {
+  const { hasPermission } = useAuth();
   const [persons, setPersons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,10 +105,12 @@ export default function PersonsList() {
           <h1 className="text-2xl font-bold text-gray-800">Registered Persons</h1>
           <p className="text-gray-500">Manage patients, doctors, visitors, and workers</p>
         </div>
-        <Link to="/register-person" className="btn-primary flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Register Person
-        </Link>
+{hasPermission('register_person') && (
+          <Link to="/register" className="btn-primary flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Register Person
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -151,9 +155,11 @@ export default function PersonsList() {
           <div className="text-center py-20">
             <User className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No persons found</p>
-            <Link to="/register-person" className="text-primary-600 hover:underline text-sm">
-              Register a new person
-            </Link>
+            {hasPermission('register_person') && (
+              <Link to="/register" className="text-primary-600 hover:underline text-sm">
+                Register a new person
+              </Link>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
