@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { alertsAPI } from '../api';
 import { 
   AlertTriangle, ArrowLeft, User, Calendar, 
-  Clock, Mail, Check, Image
+  Clock, Mail, Check, Image, Ruler
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -219,6 +219,21 @@ export default function AlertDetail() {
                 {alert.duration_seconds 
                   ? `${Math.round(alert.duration_seconds)} seconds` 
                   : 'N/A'
+                }
+              </p>
+            </div>
+            
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+                <Ruler className="h-4 w-4" />
+                Distance
+              </div>
+              <p className="font-medium">
+                {alert.distance_meters !== undefined && alert.distance_meters !== null
+                  ? `${alert.distance_meters.toFixed(2)} m`
+                  : alert.min_distance_meters !== undefined && alert.min_distance_meters !== null
+                    ? `${alert.min_distance_meters.toFixed(2)} m (min)`
+                    : 'N/A'
                 }
               </p>
             </div>

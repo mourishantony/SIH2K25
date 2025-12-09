@@ -25,6 +25,8 @@ class ContactLedgerMongo:
         pathogen_type: str = None,
         pathogen_factor: float = None,
         is_mdr_contact: bool = False,
+        distance_meters: float = None,  # Real-world distance in meters
+        min_distance_meters: float = None,  # Minimum distance during contact
     ) -> str:
         """Log a contact incident. Returns the inserted document ID."""
         doc = {
@@ -41,6 +43,9 @@ class ContactLedgerMongo:
             "mdr_risk_score": mdr_risk_score,
             "pathogen_type": pathogen_type,
             "pathogen_factor": pathogen_factor,
+            # Distance fields
+            "distance_meters": distance_meters,
+            "min_distance_meters": min_distance_meters,
         }
         result = self.collection.insert_one(doc)
         return str(result.inserted_id)

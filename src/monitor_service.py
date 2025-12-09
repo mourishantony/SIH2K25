@@ -62,6 +62,8 @@ class PairState:
     pathogen_factor: float = 1.0
     mdr_risk_score: float = 0.0
     last_pixel_distance: float = 0.0
+    last_distance_meters: Optional[float] = None  # Real-world distance in meters
+    min_distance_meters: Optional[float] = None  # Minimum distance recorded during contact
     mdr_patient_masked: bool = False
     other_person_masked: bool = False
     involves_unknown: bool = False
@@ -191,12 +193,16 @@ class ViewPipeline:
                     self.track_identities.pop(previous_track, None)
                 self.track_identities[matched.track_id] = identity
                 self.identity_claims[identity] = matched.track_id
+                track_id_str = f"[T{matched.track_id}]"
             else:
                 body_box = self._face_to_body_bbox((x1, y1, x2, y2), frame.shape)
+                track_id_str = ""
             
             recognized_faces[identity] = body_box
             cv2.rectangle(frame, (body_box[0], body_box[1]), (body_box[2], body_box[3]), (0, 255, 0), 3)
-            cv2.putText(frame, identity, (body_box[0], body_box[3] + 20),
+            # Show name with track ID for ReID tracking
+            label_text = f"{identity} {track_id_str}" if track_id_str else identity
+            cv2.putText(frame, label_text, (body_box[0], body_box[3] + 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
             crop = self._crop(frame, (x1, y1, x2, y2))
@@ -208,15 +214,22 @@ class ViewPipeline:
         self.track_identities = {tid: name for tid, name in self.track_identities.items() if tid in active_ids}
         self.identity_claims = {name: tid for name, tid in self.identity_claims.items() if tid in active_ids}
 
-        # Draw unrecognized tracks
+        # Draw unrecognized tracks and add them to named_boxes for collision detection
         for track in tracks:
             x1, y1, x2, y2 = track.bbox
-            assigned = self.track_identities.get(track.track_id, f"Track {track.track_id}")
-            if assigned.startswith("Track"):
-                color = (255, 191, 0)
+            assigned = self.track_identities.get(track.track_id)
+            
+            if assigned is None:
+                # Unrecognized person - try to get Unknown ID from unknown_tracker
+                # Generate a consistent Unknown ID based on track
+                unknown_id = f"Unknown_{track.track_id:03d}"
+                color = (255, 191, 0)  # Cyan/Yellow for unrecognized
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(frame, assigned, (x1, max(y1 - 10, 20)),
+                cv2.putText(frame, unknown_id, (x1, max(y1 - 10, 20)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                # Add to named_boxes so collision detection can use it
+                if unknown_id not in recognized_faces:
+                    recognized_faces[unknown_id] = (x1, y1, x2, y2)
         
         named_boxes = recognized_faces
         cv2.putText(frame, self.label, (20, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
@@ -364,6 +377,10 @@ class ContactMonitorService:
         self.recent_side: Dict[Tuple[str, str], Tuple[float, float]] = {}
         self.frame_number: int = 0
         self._initialized: bool = False
+        
+        # Store latest frames for MDR alert snapshots
+        self._last_front_frame: Optional[np.ndarray] = None
+        self._last_side_frame: Optional[np.ndarray] = None
 
     def initialize(self):
         """Initialize all components."""
@@ -516,6 +533,10 @@ class ContactMonitorService:
                     unknown_tracker=self.unknown_tracker,
                 )
                 
+                # Store latest processed frames for MDR alert snapshots
+                self._last_front_frame = front_processed.copy()
+                self._last_side_frame = side_processed.copy()
+                
                 # Detect collisions
                 front_bboxes = self._to_bounding_boxes(front_boxes)
                 side_bboxes = self._to_bounding_boxes(side_boxes)
@@ -525,6 +546,7 @@ class ContactMonitorService:
                         front_bboxes,
                         iou_threshold=collision_settings.iou_threshold,
                         distance_threshold=collision_settings.distance_threshold,
+                        distance_meters_threshold=collision_settings.distance_meters_threshold,
                         frame_width=frame_front.shape[1],
                         frame_height=frame_front.shape[0],
                     )
@@ -535,6 +557,7 @@ class ContactMonitorService:
                         side_bboxes,
                         iou_threshold=collision_settings.iou_threshold,
                         distance_threshold=collision_settings.distance_threshold,
+                        distance_meters_threshold=collision_settings.distance_meters_threshold,
                         frame_width=frame_side.shape[1],
                         frame_height=frame_side.shape[0],
                     )
@@ -546,6 +569,16 @@ class ContactMonitorService:
                     front_boxes, side_boxes,
                     front_processed, side_processed,
                     now, delta_t
+                )
+                
+                # Draw distance lines between persons on each frame
+                self._draw_collision_distances(
+                    front_processed, front_collisions, front_boxes,
+                    collision_settings.distance_meters_threshold
+                )
+                self._draw_collision_distances(
+                    side_processed, side_collisions, side_boxes,
+                    collision_settings.distance_meters_threshold
                 )
                 
                 # Combine frames
@@ -603,32 +636,147 @@ class ContactMonitorService:
         right_resized = _resize(right)
         return np.hstack([left_resized, right_resized])
 
+    def _draw_collision_distances(
+        self,
+        frame: np.ndarray,
+        collisions: List[Collision],
+        named_boxes: Dict[str, BBox],
+        distance_threshold_meters: float = 1.5,
+    ) -> np.ndarray:
+        """Draw distance lines between persons when within threshold.
+        
+        Args:
+            frame: The frame to draw on
+            collisions: List of detected collisions with distance info
+            named_boxes: Dict of person names to their bounding boxes
+            distance_threshold_meters: Only show distance when closer than this (meters)
+            
+        Returns:
+            Frame with distance visualizations drawn
+        """
+        for collision in collisions:
+            # Get distance in meters (if available)
+            distance_m = collision.distance_meters
+            
+            # Only draw if we have a valid distance and it's within threshold
+            if distance_m is None:
+                continue
+            
+            if distance_m > distance_threshold_meters:
+                continue
+            
+            # Get bounding box centers
+            box1 = collision.box1
+            box2 = collision.box2
+            
+            center1 = (int((box1.x1 + box1.x2) / 2), int((box1.y1 + box1.y2) / 2))
+            center2 = (int((box2.x1 + box2.x2) / 2), int((box2.y1 + box2.y2) / 2))
+            
+            # Determine color based on distance (closer = more red)
+            if distance_m <= 0.5:
+                color = (0, 0, 255)  # Red - very close
+                thickness = 4
+            elif distance_m <= 1.0:
+                color = (0, 128, 255)  # Orange - close
+                thickness = 3
+            else:
+                color = (0, 255, 255)  # Yellow - within threshold
+                thickness = 2
+            
+            # Draw line connecting the two persons
+            cv2.line(frame, center1, center2, color, thickness)
+            
+            # Calculate midpoint for distance label
+            mid_x = int((center1[0] + center2[0]) / 2)
+            mid_y = int((center1[1] + center2[1]) / 2)
+            
+            # Draw distance label with background
+            distance_text = f"{distance_m:.2f}m"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.7
+            font_thickness = 2
+            
+            (text_w, text_h), baseline = cv2.getTextSize(distance_text, font, font_scale, font_thickness)
+            
+            # Background rectangle
+            padding = 4
+            cv2.rectangle(
+                frame,
+                (mid_x - text_w // 2 - padding, mid_y - text_h // 2 - padding),
+                (mid_x + text_w // 2 + padding, mid_y + text_h // 2 + padding),
+                color,
+                -1  # Filled
+            )
+            
+            # Text
+            cv2.putText(
+                frame,
+                distance_text,
+                (mid_x - text_w // 2, mid_y + text_h // 2 - 2),
+                font,
+                font_scale,
+                (255, 255, 255),  # White text
+                font_thickness,
+            )
+            
+            # Draw person names at their positions if not already labeled
+            for box, name in [(box1, collision.person1), (box2, collision.person2)]:
+                # Draw small indicator near the person
+                box_center_x = int((box.x1 + box.x2) / 2)
+                box_bottom = box.y2 + 15
+                
+                # Small distance indicator under the person
+                cv2.putText(
+                    frame,
+                    f"<{distance_m:.1f}m",
+                    (box_center_x - 25, min(box_bottom + 20, frame.shape[0] - 5)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    color,
+                    1,
+                )
+        
+        return frame
+
     def _mask_modifier(self, prob_a: float, prob_b: float) -> float:
         effect = contact_settings.mask_effect
         modifier_a = max(0.05, 1.0 - prob_a * effect)
         modifier_b = max(0.05, 1.0 - prob_b * effect)
         return modifier_a * modifier_b
 
-    def _pairs_from_collisions(self, collisions: Sequence[Collision], min_risk: float) -> Dict[Tuple[str, str], float]:
-        pairs: Dict[Tuple[str, str], float] = {}
+    def _pairs_from_collisions(self, collisions: Sequence[Collision], min_risk: float) -> Dict[Tuple[str, str], Tuple[float, Optional[float]]]:
+        """Extract pairs from collisions with risk score and distance_meters.
+        
+        Returns:
+            Dict mapping collision_id to (risk_score, distance_meters)
+        """
+        pairs: Dict[Tuple[str, str], Tuple[float, Optional[float]]] = {}
         for collision in collisions:
             if collision.risk_score < min_risk:
                 continue
-            pairs[collision.get_collision_id()] = collision.risk_score
+            pairs[collision.get_collision_id()] = (collision.risk_score, collision.distance_meters)
         return pairs
 
     def _update_recent_contacts(
         self,
-        store: Dict[Tuple[str, str], Tuple[float, float]],
-        overlaps: Dict[Tuple[str, str], float],
+        store: Dict[Tuple[str, str], Tuple[float, float, Optional[float]]],
+        overlaps: Dict[Tuple[str, str], Tuple[float, Optional[float]]],
         timestamp: float,
         ttl: float,
     ) -> None:
-        for pair, overlap in overlaps.items():
-            store[pair] = (overlap, timestamp)
+        """Update recent contacts store with risk, timestamp, and distance.
+        
+        Args:
+            store: Dict mapping pair to (risk_score, timestamp, distance_meters)
+            overlaps: Dict mapping pair to (risk_score, distance_meters)
+            timestamp: Current timestamp
+            ttl: Time-to-live for entries
+        """
+        for pair, (risk, distance_m) in overlaps.items():
+            store[pair] = (risk, timestamp, distance_m)
         if ttl <= 0:
             return
-        stale = [pair for pair, (_, ts) in store.items() if timestamp - ts > ttl]
+        stale = [pair for pair, (_, ts, _) in store.items() if timestamp - ts > ttl]
         for pair in stale:
             store.pop(pair, None)
 
@@ -668,6 +816,13 @@ class ContactMonitorService:
             modifier = self._mask_modifier(prob_a, prob_b)
             delta_risk = self.base_rate * modifier * delta_t
             
+            # Get distance_meters from recent contacts (prefer front camera if available)
+            current_distance_m: Optional[float] = None
+            if pair in self.recent_front:
+                _, _, current_distance_m = self.recent_front[pair]
+            elif pair in self.recent_side:
+                _, _, current_distance_m = self.recent_side[pair]
+            
             if not state.active:
                 delta_risk += self.event_penalty
                 state.active = True
@@ -675,6 +830,7 @@ class ContactMonitorService:
                 state.start_timestamp = time.time()
                 state.person_a = pair[0]
                 state.person_b = pair[1]
+                state.min_distance_meters = current_distance_m
                 
                 # Load existing risks
                 existing_risk_a, existing_risk_b = get_bidirectional_risks(pair[0], pair[1])
@@ -704,6 +860,12 @@ class ContactMonitorService:
                     state.involves_unknown = True
                     state.unknown_temp_id = pair[1]
             
+            # Update current distance and track minimum
+            state.last_distance_meters = current_distance_m
+            if current_distance_m is not None:
+                if state.min_distance_meters is None or current_distance_m < state.min_distance_meters:
+                    state.min_distance_meters = current_distance_m
+            
             # Update risks
             state.cumulative_risk_a += delta_risk
             state.cumulative_risk_b += delta_risk
@@ -722,6 +884,8 @@ class ContactMonitorService:
                 "involves_mdr": state.involves_mdr,
                 "involves_unknown": state.involves_unknown,
                 "duration_seconds": time.time() - state.start_timestamp,
+                "distance_meters": round(current_distance_m, 2) if current_distance_m is not None else None,
+                "min_distance_meters": round(state.min_distance_meters, 2) if state.min_distance_meters is not None else None,
             })
         
         # Handle inactive pairs
@@ -750,6 +914,8 @@ class ContactMonitorService:
                         mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
                         pathogen_type=state.pathogen_type,
                         pathogen_factor=state.pathogen_factor,
+                        distance_meters=state.last_distance_meters,
+                        min_distance_meters=state.min_distance_meters,
                     )
                     self.ledger.log_incident(
                         state.person_b, state.person_a,
@@ -760,6 +926,8 @@ class ContactMonitorService:
                         mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
                         pathogen_type=state.pathogen_type,
                         pathogen_factor=state.pathogen_factor,
+                        distance_meters=state.last_distance_meters,
+                        min_distance_meters=state.min_distance_meters,
                     )
                     
                     # Send MDR alert if duration exceeds MDR threshold
@@ -833,6 +1001,8 @@ class ContactMonitorService:
                             mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
                             pathogen_type=state.pathogen_type,
                             pathogen_factor=state.pathogen_factor,
+                            distance_meters=state.last_distance_meters,
+                            min_distance_meters=state.min_distance_meters,
                         )
                         self.ledger.log_incident(
                             state.person_b, state.person_a,
@@ -843,6 +1013,8 @@ class ContactMonitorService:
                             mdr_risk_score=state.mdr_risk_score if state.involves_mdr else 0.0,
                             pathogen_type=state.pathogen_type,
                             pathogen_factor=state.pathogen_factor,
+                            distance_meters=state.last_distance_meters,
+                            min_distance_meters=state.min_distance_meters,
                         )
                         
                         # Send MDR alert if threshold met
@@ -859,6 +1031,10 @@ class ContactMonitorService:
         # Calculate risk percentage
         risk_percent = min(100.0, max(state.cumulative_risk_a, state.cumulative_risk_b) * 100.0)
         
+        # Capture snapshots from current frames
+        front_snapshot = self._last_front_frame.copy() if self._last_front_frame is not None else None
+        side_snapshot = self._last_side_frame.copy() if self._last_side_frame is not None else None
+        
         # Create alert data
         alert = MDRContactAlert(
             mdr_patient=state.mdr_patient,
@@ -867,8 +1043,10 @@ class ContactMonitorService:
             contact_end=state.end_iso,
             duration_seconds=duration_seconds,
             risk_percent=risk_percent,
-            front_snapshot=None,  # Could capture snapshots in future
-            side_snapshot=None,
+            front_snapshot=front_snapshot,
+            side_snapshot=side_snapshot,
+            distance_meters=state.last_distance_meters,
+            min_distance_meters=state.min_distance_meters,
         )
         
         # Send alert (stores in MongoDB and sends email)
@@ -876,4 +1054,5 @@ class ContactMonitorService:
         
         if doc_id:
             state.mdr_alert_sent = True
-            print(f"[MDR Alert] Sent alert for {state.mdr_patient} ↔ {state.other_person}, duration={duration_seconds:.1f}s, risk={risk_percent:.1f}%")
+            distance_str = f", distance={state.min_distance_meters:.2f}m" if state.min_distance_meters is not None else ""
+            print(f"[MDR Alert] Sent alert for {state.mdr_patient} ↔ {state.other_person}, duration={duration_seconds:.1f}s, risk={risk_percent:.1f}%{distance_str}")

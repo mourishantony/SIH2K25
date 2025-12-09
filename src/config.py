@@ -108,6 +108,7 @@ class ContactSettings:
 class CollisionSettings:
     iou_threshold: float
     distance_threshold: float
+    distance_meters_threshold: float  # Real-world distance threshold in meters
     require_both_cameras: bool
     min_risk_for_alert: float
     alert_duration_seconds: float
@@ -180,6 +181,7 @@ contact_settings = ContactSettings(
 collision_settings = CollisionSettings(
     iou_threshold=_get_float("COLLISION_IOU_THRESHOLD", 0.1),
     distance_threshold=_get_float("COLLISION_DISTANCE_THRESHOLD", 200.0),
+    distance_meters_threshold=_get_float("COLLISION_DISTANCE_METERS_THRESHOLD", 1.5),  # 1.5 meters default
     require_both_cameras=_get_bool("COLLISION_REQUIRE_BOTH_CAMERAS", True),
     min_risk_for_alert=_get_float("COLLISION_MIN_RISK_FOR_ALERT", 0.4),
     alert_duration_seconds=_get_float("COLLISION_ALERT_DURATION", 10.0),

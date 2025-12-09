@@ -4,7 +4,7 @@ import { alertsAPI } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { 
   AlertTriangle, Bell, Check, CheckCheck, Eye, 
-  Calendar, User, Users, Filter, RefreshCw, Mail, Image, Trash2
+  Calendar, User, Users, Filter, RefreshCw, Mail, Image, Trash2, Ruler
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -260,6 +260,17 @@ export default function Alerts() {
                     )}
                     {alert.duration_seconds > 0 && (
                       <span>Duration: {Math.round(alert.duration_seconds)}s</span>
+                    )}
+                    {(alert.distance_meters !== undefined && alert.distance_meters !== null) ? (
+                      <span className="flex items-center gap-1">
+                        <Ruler className="h-3 w-3" />
+                        {alert.distance_meters.toFixed(2)}m
+                      </span>
+                    ) : (alert.min_distance_meters !== undefined && alert.min_distance_meters !== null) && (
+                      <span className="flex items-center gap-1">
+                        <Ruler className="h-3 w-3" />
+                        {alert.min_distance_meters.toFixed(2)}m (min)
+                      </span>
                     )}
                     {alert.risk_percent !== undefined && alert.risk_percent > 0 && (
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -561,6 +572,20 @@ export default function Alerts() {
                         {selectedAlert.duration_seconds 
                           ? `${Math.round(selectedAlert.duration_seconds)} seconds` 
                           : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500 flex items-center gap-1">
+                        <Ruler className="h-4 w-4" />
+                        Contact Distance
+                      </span>
+                      <span className="font-medium">
+                        {selectedAlert.distance_meters !== undefined && selectedAlert.distance_meters !== null
+                          ? `${selectedAlert.distance_meters.toFixed(2)} m`
+                          : selectedAlert.min_distance_meters !== undefined && selectedAlert.min_distance_meters !== null
+                            ? `${selectedAlert.min_distance_meters.toFixed(2)} m (min)`
+                            : 'N/A'
                         }
                       </span>
                     </div>

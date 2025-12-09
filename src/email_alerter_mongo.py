@@ -34,6 +34,8 @@ class MDRContactAlert:
     risk_percent: float
     front_snapshot: Optional[np.ndarray] = None
     side_snapshot: Optional[np.ndarray] = None
+    distance_meters: Optional[float] = None  # Real-world distance in meters
+    min_distance_meters: Optional[float] = None  # Minimum distance during contact
 
 
 class EmailAlerterMongo:
@@ -98,6 +100,8 @@ class EmailAlerterMongo:
             "contact_end": alert.contact_end,
             "duration_seconds": alert.duration_seconds,
             "risk_percent": alert.risk_percent,
+            "distance_meters": alert.distance_meters,
+            "min_distance_meters": alert.min_distance_meters,
             "status": "ongoing" if alert.contact_end is None else "completed",
             "created_at": datetime.now(),  # Use local time
             "alert_created_at": datetime.now(),  # When the alert was triggered (local time)
@@ -205,6 +209,11 @@ class EmailAlerterMongo:
                 </div>
                 
                 <div class="detail-row">
+                    <span class="label">Contact Distance:</span>
+                    <span class="value">{f"{alert.min_distance_meters:.2f} meters (minimum)" if alert.min_distance_meters is not None else (f"{alert.distance_meters:.2f} meters" if alert.distance_meters is not None else "Not available")}</span>
+                </div>
+                
+                <div class="detail-row">
                     <span class="label">Risk Percentage:</span>
                     <span class="{self._get_risk_class(alert.risk_percent)}">{alert.risk_percent:.1f}%</span>
                 </div>
@@ -295,6 +304,8 @@ class EmailAlerterMongo:
                 "contact_count": {"$sum": 1},
                 "total_duration": {"$sum": "$duration_seconds"},
                 "max_risk": {"$max": "$risk_percent"},
+                "min_distance": {"$min": "$min_distance_meters"},
+                "last_distance": {"$last": "$distance_meters"},
                 "first_contact": {"$min": "$created_at"},
                 "last_contact": {"$max": "$created_at"},
                 "last_id": {"$last": "$_id"},
@@ -319,6 +330,8 @@ class EmailAlerterMongo:
                 "duration_seconds": round(doc["total_duration"], 1),
                 "duration_minutes": round(doc["total_duration"] / 60.0, 2),
                 "risk_percent": round(doc["max_risk"], 1),
+                "min_distance_meters": doc.get("min_distance"),
+                "distance_meters": doc.get("last_distance"),
                 "first_contact": doc["first_contact"],
                 "created_at": doc["last_contact"],
                 "timestamp": doc["last_contact"],  # When contact was detected

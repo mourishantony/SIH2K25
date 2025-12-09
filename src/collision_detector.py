@@ -5,6 +5,15 @@ import time
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+# Import distance utilities for real-world distance calculation
+try:
+    from distance_utils import real_world_distance_meters, load_fx_from_calibration
+    _DISTANCE_UTILS_AVAILABLE = True
+except ImportError:
+    _DISTANCE_UTILS_AVAILABLE = False
+    real_world_distance_meters = None
+    load_fx_from_calibration = None
+
 
 @dataclass
 class BoundingBox:
@@ -43,6 +52,7 @@ class Collision:
     start_time: float = 0.0
     duration: float = 0.0
     frame_count: int = 0
+    distance_meters: Optional[float] = None  # Real-world distance in meters (if calibration available)
 
     def get_collision_id(self) -> Tuple[str, str]:
         return tuple(sorted((self.person1, self.person2)))
@@ -118,19 +128,28 @@ def detect_collisions(
     *,
     iou_threshold: float = 0.01,  # Very low - any overlap counts
     distance_threshold: float = 350.0,  # Increased - detect close proximity even without overlap
+    distance_meters_threshold: float = 1.5,  # Real-world distance threshold in meters
     frame_width: int = 640,
     frame_height: int = 480,
+    use_distance_meters: bool = True,  # Use real-world distance for filtering if available
 ) -> List[Collision]:
     """Detect collisions (close contacts) between bounding boxes.
     
     A collision is detected if EITHER:
     - IoU >= iou_threshold (boxes overlap), OR
-    - Distance between centers <= distance_threshold (boxes are close)
+    - Distance between centers <= distance_threshold (boxes are close in pixels), OR
+    - Real-world distance <= distance_meters_threshold (if calibration available)
     """
     collisions: List[Collision] = []
     if not bboxes:
         return collisions
     frame_diagonal = math.sqrt(frame_width ** 2 + frame_height ** 2)
+    
+    # Load calibration focal length for real-world distance calculation
+    fx = None
+    if _DISTANCE_UTILS_AVAILABLE and use_distance_meters:
+        fx = load_fx_from_calibration()
+    
     for idx in range(len(bboxes)):
         for jdx in range(idx + 1, len(bboxes)):
             box1 = bboxes[idx]
@@ -138,8 +157,27 @@ def detect_collisions(
             iou = calculate_iou(box1, box2)
             distance = calculate_distance(box1, box2)
             
-            # Detect collision if boxes overlap OR are close enough
-            if iou < iou_threshold and distance > distance_threshold:
+            # Calculate real-world distance in meters if calibration is available
+            distance_m: Optional[float] = None
+            if fx is not None and _DISTANCE_UTILS_AVAILABLE:
+                bbox1_tuple = (box1.x1, box1.y1, box1.x2, box1.y2)
+                bbox2_tuple = (box2.x1, box2.y1, box2.x2, box2.y2)
+                distance_m = real_world_distance_meters(bbox1_tuple, bbox2_tuple, fx)
+            
+            # Detect collision based on multiple criteria
+            is_collision = False
+            
+            # Check IoU overlap
+            if iou >= iou_threshold:
+                is_collision = True
+            # Check pixel distance
+            elif distance <= distance_threshold:
+                is_collision = True
+            # Check real-world distance in meters (if available)
+            elif distance_m is not None and distance_m <= distance_meters_threshold:
+                is_collision = True
+            
+            if not is_collision:
                 continue
                 
             risk_score = calculate_risk_score(iou, distance, frame_diagonal)
@@ -154,6 +192,7 @@ def detect_collisions(
                     distance=distance,
                     risk_level=risk_level,
                     risk_score=risk_score,
+                    distance_meters=distance_m,
                 )
             )
     collisions.sort(key=lambda c: c.risk_score, reverse=True)
