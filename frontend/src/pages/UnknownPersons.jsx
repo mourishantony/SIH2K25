@@ -20,9 +20,9 @@ export default function UnknownPersons() {
   const [linkTarget, setLinkTarget] = useState(null);
   const [registeredPersons, setRegisteredPersons] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState('all'); // all, mdr_contact, recent
+  const [filter, setFilter] = useState('all'); 
   
-  // Register modal state
+
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registerTarget, setRegisterTarget] = useState(null);
   const [registerName, setRegisterName] = useState('');
@@ -559,6 +559,16 @@ export default function UnknownPersons() {
                               {Math.round(contact.duration_sec || contact.duration_seconds || 0)}s
                             </p>
                             <p className="text-sm text-gray-500">Duration</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-semibold text-gray-800">
+                              {contact.min_distance_meters !== undefined && contact.min_distance_meters !== null
+                                ? `${contact.min_distance_meters.toFixed(2)}m`
+                                : contact.distance_meters !== undefined && contact.distance_meters !== null
+                                  ? `${contact.distance_meters.toFixed(2)}m`
+                                  : 'N/A'}
+                            </p>
+                            <p className="text-sm text-gray-500">Distance</p>
                           </div>
                         </div>
                       </div>

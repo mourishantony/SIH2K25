@@ -23,7 +23,7 @@ export default function Alerts() {
         ? await alertsAPI.getUnread()
         : await alertsAPI.getAll();
       
-      // Backend returns {total/unread_count, alerts: [...]}
+
       let data = res.data.alerts || res.data || [];
       if (filter === 'read') {
         data = data.filter(a => a.is_read);

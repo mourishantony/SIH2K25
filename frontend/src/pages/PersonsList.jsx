@@ -27,11 +27,11 @@ export default function PersonsList() {
       if (searchQuery) params.search = searchQuery;
       
       const response = await personsAPI.getAll(params);
-      // Handle both array and paginated response formats
+      
       const personsList = Array.isArray(response.data) ? response.data : (response.data.persons || []);
       setPersons(personsList);
       
-      // Fetch training status for each person
+      
       const statusPromises = personsList.map(p => 
         faceAPI.getTrainingStatus(p.name).catch(() => ({ data: { is_trained: false } }))
       );

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Icon mapping for dynamic navigation
+
 const ICON_MAP = {
   LayoutDashboard,
   UserPlus,
@@ -39,19 +39,26 @@ export default function Layout() {
   const [showAlertPopup, setShowAlertPopup] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
-  // Fetch unread alerts count
+
   useEffect(() => {
+   
+    if (!hasPermission('alerts')) {
+      setUnreadAlerts(0);
+      setRecentAlerts([]);
+      return;
+    }
+
     const fetchUnreadAlerts = async () => {
       try {
         const response = await alertsAPI.getUnread();
         const alerts = response.data;
         
-        // Handle both array and object response formats
+        
         if (Array.isArray(alerts)) {
           setUnreadAlerts(alerts.length);
           setRecentAlerts(alerts.slice(0, 5));
           
-          // Show popup for recent alerts
+         
           if (alerts.length > 0) {
             const latestAlert = alerts[0];
             const alertTime = new Date(latestAlert.timestamp || latestAlert.created_at);
@@ -85,10 +92,10 @@ export default function Layout() {
 
     fetchUnreadAlerts();
     
-    // Poll for new alerts every 30 seconds
+    
     const interval = setInterval(fetchUnreadAlerts, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasPermission]);
 
   const handleLogout = () => {
     logout();
@@ -234,6 +241,11 @@ export default function Layout() {
                                 </p>
                                 <p className="text-xs text-gray-500">
                                   {alert.contact_type || 'Contact'} • {alert.duration_seconds ? `${alert.duration_seconds}s` : 'N/A'}
+                                  {(alert.min_distance_meters !== undefined && alert.min_distance_meters !== null) 
+                                    ? ` • ${alert.min_distance_meters.toFixed(2)}m`
+                                    : (alert.distance_meters !== undefined && alert.distance_meters !== null)
+                                      ? ` • ${alert.distance_meters.toFixed(2)}m`
+                                      : ''}
                                 </p>
                               </div>
                             </div>

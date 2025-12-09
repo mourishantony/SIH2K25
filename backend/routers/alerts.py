@@ -1,4 +1,4 @@
-"""Alerts router for MDR contact alerts and notifications."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -18,7 +18,7 @@ async def get_all_alerts(
     unread_only: bool = Query(False),
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Get all MDR contact alerts."""
+   
     from email_alerter_mongo import get_email_alerter
     
     alerter = get_email_alerter()
@@ -36,7 +36,7 @@ async def get_all_alerts(
 
 @router.get("/unread")
 async def get_unread_alerts(current_user: dict = Depends(require_permission("alerts"))):
-    """Get unread alerts for notification popup."""
+    
     from email_alerter_mongo import get_email_alerter
     
     alerter = get_email_alerter()
@@ -51,7 +51,7 @@ async def get_unread_alerts(current_user: dict = Depends(require_permission("ale
 
 @router.get("/count")
 async def get_alert_counts(current_user: dict = Depends(require_permission("alerts"))):
-    """Get alert counts for dashboard."""
+    
     from email_alerter_mongo import get_email_alerter
     from alert_system_mongo import get_alert_system
     
@@ -70,7 +70,7 @@ async def get_alert_detail(
     alert_id: str,
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Get detailed alert information including snapshots."""
+    
     from email_alerter_mongo import get_email_alerter
     
     alerter = get_email_alerter()
@@ -91,7 +91,7 @@ async def delete_alert(
     alert_id: str,
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Delete a specific alert by ID."""
+
     alerts = get_alerts_collection()
 
     try:
@@ -111,7 +111,7 @@ async def mark_alert_read(
     alert_id: str,
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Mark an alert as read."""
+    
     from email_alerter_mongo import get_email_alerter
     
     alerter = get_email_alerter()
@@ -129,7 +129,7 @@ async def mark_alert_read(
 
 @router.post("/read-all")
 async def mark_all_alerts_read(current_user: dict = Depends(require_permission("alerts"))):
-    """Mark all alerts as read."""
+    
     from email_alerter_mongo import get_email_alerter
     
     alerter = get_email_alerter()
@@ -146,7 +146,7 @@ async def get_alerts_for_patient(
     patient_name: str,
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Get all alerts for a specific MDR patient."""
+    
     from email_alerter_mongo import get_email_alerter
     
     alerter = get_email_alerter()
@@ -164,7 +164,7 @@ async def get_recent_collision_alerts(
     limit: int = Query(50, ge=1, le=200),
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Get recent collision alerts (general proximity alerts)."""
+    
     from alert_system_mongo import get_alert_system
     
     alert_system = get_alert_system()
@@ -181,7 +181,7 @@ async def mark_collision_alert_read(
     alert_id: str,
     current_user: dict = Depends(require_permission("alerts"))
 ):
-    """Mark a collision alert as read."""
+    
     from alert_system_mongo import get_alert_system
     
     alert_system = get_alert_system()
@@ -198,8 +198,8 @@ async def mark_collision_alert_read(
 async def delete_all_alerts(
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete all alerts. Admin only."""
-    # Check if user is admin
+    
+    
     if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

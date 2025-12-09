@@ -13,7 +13,7 @@ const INPUT_MODES = [
 ];
 
 export default function MonitoringPage() {
-  // State
+  
   const [inputMode, setInputMode] = useState('video');
   const [videos, setVideos] = useState([]);
   const [selectedFrontVideo, setSelectedFrontVideo] = useState(null);
@@ -22,25 +22,25 @@ export default function MonitoringPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadType, setUploadType] = useState('front');
   
-  // Webcam state
+  
   const [webcams, setWebcams] = useState([]);
   const [frontCamIndex, setFrontCamIndex] = useState(0);
   const [sideCamIndex, setSideCamIndex] = useState(1);
   
-  // Session state
+ 
   const [isRunning, setIsRunning] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState('idle');
   
-  // Frame display
+ 
   const [frameData, setFrameData] = useState({});
   const [combinedFrame, setCombinedFrame] = useState(null);
   const [detectedPersons, setDetectedPersons] = useState({ front: [], side: [] });
   const [activeContacts, setActiveContacts] = useState([]);
   const [monitorStats, setMonitorStats] = useState({});
   
-  // Config
+  
   const [config, setConfig] = useState({
     use_gpu: false,
     min_confidence: 0.35,
@@ -53,12 +53,12 @@ export default function MonitoringPage() {
   const wsRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Load videos and check status on mount
+ 
   useEffect(() => {
     fetchVideos();
     checkStatus();
     
-    // Cleanup WebSocket on unmount
+    
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
@@ -66,19 +66,19 @@ export default function MonitoringPage() {
     };
   }, []);
 
-  // Enumerate webcams only when switching to webcam mode
+ 
   useEffect(() => {
     if (inputMode === 'webcam' && webcams.length === 0) {
       enumerateWebcams();
     }
   }, [inputMode]);
 
-  // Auto-select videos when list changes
+
   useEffect(() => {
     const frontVids = videos.filter(v => v.video_type === 'front');
     const sideVids = videos.filter(v => v.video_type === 'side');
     
-    // Auto-select if only one video of each type
+
     if (frontVids.length === 1 && !selectedFrontVideo) {
       setSelectedFrontVideo(frontVids[0].filename);
     }
@@ -106,7 +106,7 @@ export default function MonitoringPage() {
       setIsRunning(data.status === 'running' || data.status === 'starting');
       
       if (data.status === 'running') {
-        // Reconnect to WebSocket
+       
         connectWebSocket();
       }
     } catch (error) {
@@ -116,10 +116,10 @@ export default function MonitoringPage() {
 
   const enumerateWebcams = async () => {
     try {
-      // Request permission first
+     
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       
-      // Immediately stop all tracks to release the camera
+      
       stream.getTracks().forEach(track => track.stop());
       
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -135,7 +135,7 @@ export default function MonitoringPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
+    
     if (!file.type.startsWith('video/')) {
       toast.error('Please select a video file');
       return;
@@ -172,7 +172,7 @@ export default function MonitoringPage() {
       toast.success('Video deleted');
       fetchVideos();
       
-      // Clear selection if deleted
+    
       if (selectedFrontVideo === filename) setSelectedFrontVideo(null);
       if (selectedSideVideo === filename) setSelectedSideVideo(null);
     } catch (error) {
@@ -182,7 +182,7 @@ export default function MonitoringPage() {
 
   const startMonitoring = async () => {
     try {
-      // Build config based on input mode
+
       let monitorConfig;
       
       if (inputMode === 'video') {
@@ -191,7 +191,7 @@ export default function MonitoringPage() {
           return;
         }
         
-        // Find full paths from video list
+       
         const frontVideo = videos.find(v => v.filename === selectedFrontVideo);
         const sideVideo = videos.find(v => v.filename === selectedSideVideo);
         
@@ -209,7 +209,6 @@ export default function MonitoringPage() {
           ...config,
         };
       } else {
-        // Webcam mode - ensure cameras are enumerated
         if (webcams.length === 0) {
           await enumerateWebcams();
         }
@@ -228,7 +227,7 @@ export default function MonitoringPage() {
       setIsRunning(true);
       setStatus('starting');
       
-      // Connect to WebSocket
+      
       connectWebSocket();
       
       toast.success('Monitoring started');
@@ -281,18 +280,18 @@ export default function MonitoringPage() {
         const data = JSON.parse(event.data);
         
         if (data.type === 'frame') {
-          // Handle combined frame from backend
+     
           if (data.frame_base64) {
             setCombinedFrame(data.frame_base64);
           }
-          // Handle separate views (legacy/alternative format)
+          
           if (data.view && data.frame) {
             setFrameData(prev => ({
               ...prev,
               [data.view]: data.frame,
             }));
           }
-          // Update detected persons and stats
+    
           if (data.detected_persons) {
             setDetectedPersons(data.detected_persons);
           }
@@ -303,7 +302,7 @@ export default function MonitoringPage() {
             setMonitorStats(data.stats);
           }
         } else if (data.type === 'collision') {
-          // Show collision alert
+          
           toast.custom((t) => (
             <div className={`${t.visible ? 'animate-fadeIn' : 'opacity-0'} bg-red-600 text-white p-4 rounded-lg shadow-lg max-w-md`}>
               <div className="flex items-start gap-3">
@@ -347,10 +346,9 @@ export default function MonitoringPage() {
     if (inputMode === 'video') {
       return selectedFrontVideo && selectedSideVideo;
     }
-    return true; // Webcam mode always available
+    return true; 
   };
 
-  // Filter videos by type
   const frontVideos = videos.filter(v => v.video_type === 'front');
   const sideVideos = videos.filter(v => v.video_type === 'side');
 

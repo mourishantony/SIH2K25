@@ -269,6 +269,13 @@ R_new = R_old + (BaseRate × MaskModifier × Δt) + EventPenalty
 - `CONTACT_MASK_EFFECT`: Reduces risk when mask is detected (0.5 = 50% reduction)
 - Mask detection uses a trained classifier on the Kaggle face-mask-detection dataset
 
+**Risk Levels:**
+| Level | Risk Percentage | Color |
+|-------|----------------|-------|
+| Low | 0% - 39% | Green |
+| Medium | 40% - 69% | Orange |
+| High | 70% - 100% | Red |
+
 **Collision Detection + Alerts:**
 - Measures IoU (Intersection over Union) + center-to-center distance for each pair
 - Blends metrics into normalized risk score (0.0 = SAFE → 1.0 = CRITICAL)

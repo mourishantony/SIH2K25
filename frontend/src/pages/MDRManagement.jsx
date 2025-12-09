@@ -23,11 +23,10 @@ export default function MDRManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContacts, setSelectedContacts] = useState(null);
   
-  // Pathogen management state
   const [showPathogenModal, setShowPathogenModal] = useState(false);
   const [pathogenForm, setPathogenForm] = useState({ name: '', risk_factor: 1.0, incubation_days: 14, description: '' });
   const [editingPathogen, setEditingPathogen] = useState(null);
-  const [activeTab, setActiveTab] = useState('patients'); // 'patients' or 'pathogens'
+  const [activeTab, setActiveTab] = useState('patients'); 
 
   const fetchData = async () => {
     try {
@@ -37,7 +36,6 @@ export default function MDRManagement() {
         mdrAPI.getEligible(),
         pathogensAPI.getAll()
       ]);
-      // Backend returns {total, patients: [...]} and {total, eligible_patients: [...]}
       setMdrPatients(mdrRes.data.patients || mdrRes.data || []);
       setEligiblePersons(eligibleRes.data.eligible_patients || eligibleRes.data || []);
       setPathogens(pathogensRes.data || []);
@@ -81,14 +79,13 @@ export default function MDRManagement() {
   const viewContacts = async (name) => {
     try {
       const res = await mdrAPI.getContacts(name);
-      // Backend returns {mdr_patient, total_contacts, contacts: [...], summary}
+     
       setSelectedContacts({ name, contacts: res.data.contacts || res.data || [] });
     } catch (error) {
       toast.error('Failed to fetch contacts');
     }
   };
 
-  // Pathogen management functions
   const handleSavePathogen = async () => {
     try {
       if (editingPathogen) {
@@ -559,6 +556,9 @@ export default function MDRManagement() {
                         Duration
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Distance
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Risk %
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -580,6 +580,13 @@ export default function MDRManagement() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">
                           {contact.duration_seconds ? `${Math.round(contact.duration_seconds)}s` : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {contact.min_distance_meters !== undefined && contact.min_distance_meters !== null
+                            ? `${contact.min_distance_meters.toFixed(2)}m`
+                            : contact.distance_meters !== undefined && contact.distance_meters !== null
+                              ? `${contact.distance_meters.toFixed(2)}m`
+                              : 'N/A'}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${

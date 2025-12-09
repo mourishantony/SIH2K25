@@ -1,4 +1,4 @@
-"""Authentication router with JWT tokens and role-based access control."""
+
 from __future__ import annotations
 
 import os
@@ -18,20 +18,20 @@ from database import get_users_collection
 router = APIRouter()
 security = HTTPBearer()
 
-# JWT Configuration
+
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-change-in-production")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
 
-# Role definitions
+
 class UserRole(str, Enum):
     ADMIN = "admin"
     EHR_USER = "ehr_user"
     OFFICER = "officer"
 
 
-# Role permissions mapping
+
 ROLE_PERMISSIONS = {
     UserRole.ADMIN: [
         "dashboard", "registered_persons", "unknown_persons",
@@ -56,7 +56,6 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-# Pydantic Models
 class UserCreate(BaseModel):
     username: str
     email: str
@@ -91,9 +90,9 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-# Helper functions
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
+    
     to_encode = data.copy()
     
     if expires_delta:

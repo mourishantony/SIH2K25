@@ -1,0 +1,83 @@
+[
+  {
+    "timestamp": "2025-12-03T11:39:04.604756",
+    "collision_id": "Person_0_Person_1",
+    "person1": "Person_0",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.405,
+    "duration_seconds": 2.0,
+    "frame_count": 33,
+    "iou": 0.196,
+    "distance_pixels": 239.6,
+    "frame_number": 33,
+    "bbox1": {
+      "x1": 400,
+      "y1": 485,
+      "x2": 805,
+      "y2": 1071,
+      "confidence": 0.926
+    },
+    "bbox2": {
+      "x1": 676,
+      "y1": 552,
+      "x2": 1003,
+      "y2": 1074,
+      "confidence": 0.909
+    }
+  },
+  {
+    "timestamp": "2025-12-03T12:41:37.675016",
+    "collision_id": "Person_0_Person_1",
+    "person1": "Person_0",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.405,
+    "duration_seconds": 2.1,
+    "frame_count": 31,
+    "iou": 0.197,
+    "distance_pixels": 238.5,
+    "frame_number": 31,
+    "bbox1": {
+      "x1": 399,
+      "y1": 492,
+      "x2": 804,
+      "y2": 1071,
+      "confidence": 0.928
+    },
+    "bbox2": {
+      "x1": 675,
+      "y1": 558,
+      "x2": 1000,
+      "y2": 1074,
+      "confidence": 0.897
+    }
+  },
+  {
+    "timestamp": "2025-12-03T13:57:17.255127",
+    "collision_id": "Person_0_Person_1",
+    "person1": "Person_0",
+    "person2": "Person_1",
+    "risk_level": "MEDIUM",
+    "risk_score": 0.402,
+    "duration_seconds": 2.0,
+    "frame_count": 30,
+    "iou": 0.193,
+    "distance_pixels": 239.8,
+    "frame_number": 30,
+    "bbox1": {
+      "x1": 399,
+      "y1": 494,
+      "x2": 805,
+      "y2": 1071,
+      "confidence": 0.932
+    },
+    "bbox2": {
+      "x1": 679,
+      "y1": 559,
+      "x2": 1000,
+      "y2": 1072,
+      "confidence": 0.901
+    }
+  }
+]

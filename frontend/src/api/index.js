@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API_URL = '/api';
 
-// Create axios instance
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -10,7 +10,7 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -24,7 +24,7 @@ api.interceptors.request.use(
   }
 );
 
-// Handle response errors
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -37,7 +37,6 @@ api.interceptors.response.use(
   }
 );
 
-// Auth API
 export const authAPI = {
   login: (username, password) => 
     api.post('/auth/login', { username, password }),
@@ -51,7 +50,7 @@ export const authAPI = {
     }),
 };
 
-// Dashboard API
+
 export const dashboardAPI = {
   getStats: () => 
     api.get('/dashboard/stats'),
@@ -63,7 +62,7 @@ export const dashboardAPI = {
     api.get('/dashboard/contact-trends', { params: { days } }),
 };
 
-// Persons API
+
 export const personsAPI = {
   getAll: (params = {}) => 
     api.get('/persons/', { params }),
@@ -83,7 +82,7 @@ export const personsAPI = {
     api.get('/persons/roles'),
 };
 
-// Face Registration API
+
 export const faceAPI = {
   getSettings: () => 
     api.get('/face/settings'),
@@ -103,7 +102,7 @@ export const faceAPI = {
     api.get('/face/registered'),
 };
 
-// MDR API
+
 export const mdrAPI = {
   getPatients: () => 
     api.get('/mdr/patients'),
@@ -125,7 +124,7 @@ export const mdrAPI = {
     api.get(`/mdr/contacts/${name}`, { params: { limit } }),
 };
 
-// Alerts API
+
 export const alertsAPI = {
   getAll: (limit = 100, unreadOnly = false) => 
     api.get('/alerts/', { params: { limit, unread_only: unreadOnly } }),
@@ -149,7 +148,7 @@ export const alertsAPI = {
     api.get('/alerts/collision/recent', { params: { limit } }),
 };
 
-// Unknown Persons API
+
 export const unknownAPI = {
   getAll: (params = {}) => 
     api.get('/unknown/', { params }),
@@ -167,9 +166,9 @@ export const unknownAPI = {
     api.get('/unknown/settings'),
 };
 
-// Monitoring API
+
 export const monitoringAPI = {
-  // Video management
+ 
   uploadVideo: (file, videoType = 'front', onUploadProgress) => {
     const formData = new FormData();
     formData.append('video_file', file);
@@ -184,7 +183,7 @@ export const monitoringAPI = {
   deleteVideo: (filename) => 
     api.delete(`/monitoring/uploaded-videos/${filename}`),
   
-  // Session management
+  
   getStatus: () =>
     api.get('/monitoring/status'),
   startMonitoring: (config) => 
@@ -194,10 +193,10 @@ export const monitoringAPI = {
   getConfig: () =>
     api.get('/monitoring/config'),
   
-  // Get WebSocket URL for frame streaming (no session ID needed - single session)
+ 
   getWebSocketUrl: () => {
-    // In development, connect directly to backend server
-    // In production, use same host as the page
+    
+    
     const isDev = import.meta.env.DEV;
     if (isDev) {
       return 'ws://localhost:8000/api/monitoring/ws';
@@ -208,7 +207,7 @@ export const monitoringAPI = {
   },
 };
 
-// User Management API (Admin only)
+
 export const usersAPI = {
   getAll: () => 
     api.get('/auth/users'),
@@ -222,7 +221,7 @@ export const usersAPI = {
     api.get('/auth/roles'),
 };
 
-// Pathogen Management API (EHR Users)
+
 export const pathogensAPI = {
   getAll: () => 
     api.get('/pathogens/'),
