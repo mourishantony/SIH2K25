@@ -9,7 +9,77 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ultralytics import YOLO
+
 BBox = Tuple[int, int, int, int]
+
+
+def _patch_torch_load_for_ultralytics() -> None:
+    """
+    PyTorch 2.6 changed torch.load's default weights_only from False to True.
+    This breaks YOLOv8/Ultralytics model loading because DetectionModel and
+    related classes aren't in the default safe globals list.
+
+    This patch adds the necessary Ultralytics classes to torch's safe globals
+    so YOLO weights can be loaded without disabling weights_only entirely.
+    """
+    try:
+        import torch
+        import torch.serialization as _ts
+
+        # Attempt the safe approach: allowlist known Ultralytics globals
+        try:
+            from torch.serialization import add_safe_globals
+            from ultralytics.nn.tasks import (
+                DetectionModel,
+                SegmentationModel,
+                PoseModel,
+                ClassificationModel,
+            )
+            from ultralytics.nn.modules.head import Detect, Segment, Pose, Classify
+            add_safe_globals([
+                DetectionModel,
+                SegmentationModel,
+                PoseModel,
+                ClassificationModel,
+                Detect,
+                Segment,
+                Pose,
+                Classify,
+            ])
+            return  # Success — safe globals registered
+        except (ImportError, AttributeError):
+            pass
+
+        # Fallback for older torch versions that don't have add_safe_globals:
+        # Monkey-patch torch.load to pass weights_only=False when loading
+        # .pt files from Ultralytics. Only applied if the safe approach fails.
+        _original_torch_load = torch.load
+
+        def _patched_torch_load(f, map_location=None, pickle_module=None,
+                                weights_only=None, **kwargs):
+            if weights_only is None:
+                # Default to False to maintain pre-2.6 behaviour for .pt files
+                weights_only = False
+            if pickle_module is not None:
+                return _original_torch_load(
+                    f, map_location=map_location,
+                    pickle_module=pickle_module,
+                    weights_only=weights_only, **kwargs
+                )
+            return _original_torch_load(
+                f, map_location=map_location,
+                weights_only=weights_only, **kwargs
+            )
+
+        torch.load = _patched_torch_load
+
+    except Exception as e:
+        # Non-fatal: if patching fails just print a warning and continue
+        print(f"[reid_tracker] Warning: could not patch torch.load: {e}")
+
+
+# Apply the patch immediately at import time, before YOLO is ever called
+_patch_torch_load_for_ultralytics()
 
 
 def _ensure_torchreid_namespace() -> None:
@@ -28,7 +98,6 @@ def _ensure_torchreid_namespace() -> None:
         return
 
     sys.modules["torchreid.utils"] = utils_module
-
 
 
 @dataclass

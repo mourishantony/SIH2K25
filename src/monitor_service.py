@@ -230,7 +230,11 @@ class ViewPipeline:
             if assigned is None:
                 # Unrecognized person - try to get Unknown ID from unknown_tracker
                 # Generate a consistent Unknown ID based on track
-                unknown_id = f"Unknown_{track.track_id:03d}"
+                _tid = track.track_id
+                try:
+                    unknown_id = f"Unknown_{int(_tid):03d}"
+                except (ValueError, TypeError):
+                    unknown_id = f"Unknown_{str(_tid)}"
                 color = (255, 191, 0)  # Cyan/Yellow for unrecognized
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, unknown_id, (x1, max(y1 - 10, 20)),
@@ -466,8 +470,25 @@ class ContactMonitorService:
 
     def _build_tracker(self) -> PersonTracker:
         use_gpu = recognition_settings.reid_embedder_gpu or self.use_gpu
+
+        # Resolve yolov8n.pt to absolute path so FastAPI finds it regardless
+        # of which working directory uvicorn was launched from.
+        raw_model_path = str(recognition_settings.reid_model_path or "yolov8n.pt")
+        model_path = Path(raw_model_path)
+        if not model_path.is_absolute():
+            # Path(__file__) = src/monitor_service.py  =>  .parent = src/  =>  .parent = project root
+            _project_root = Path(__file__).resolve().parent.parent
+            candidate_src  = _project_root / "src" / raw_model_path
+            candidate_here = Path(__file__).resolve().parent / raw_model_path
+            if candidate_src.exists():
+                model_path = candidate_src
+            elif candidate_here.exists():
+                model_path = candidate_here
+
+        print(f"[MonitorService] YOLO model path resolved -> {model_path}")
+
         return PersonTracker(
-            model_path=str(recognition_settings.reid_model_path or "yolov8n.pt"),
+            model_path=str(model_path),
             detection_confidence=recognition_settings.reid_detector_conf,
             embedder_gpu=use_gpu,
             nms_iou=recognition_settings.reid_nms_iou,

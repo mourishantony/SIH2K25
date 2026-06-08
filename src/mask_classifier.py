@@ -124,7 +124,22 @@ class MaskClassifier:
 
     def _load_or_train(self):
         if _MODEL_PATH.exists():
-            return load(_MODEL_PATH)
+            # Detect sklearn version mismatch and retrain automatically
+            try:
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error")
+                    model = load(_MODEL_PATH)
+                return model
+            except Exception as version_err:
+                rprint(
+                    f"[yellow]Mask model version mismatch ({version_err}). "
+                    f"Deleting stale model and retraining...[/]"
+                )
+                try:
+                    _MODEL_PATH.unlink()
+                except OSError:
+                    pass
         if not _DATASET_ROOT.exists():
             rprint("[yellow]Mask dataset folder missing; using fallback probabilities.[/]")
             return _FallbackModel()

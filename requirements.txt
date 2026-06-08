@@ -1,53 +1,172 @@
-# === GPU ENABLED CORE DEPS ===
-# Install PyTorch with: pip install torch==2.3.0+cu121 torchvision==0.18.0+cu121 torchaudio==2.3.0+cu121 --index-url https://download.pytorch.org/whl/cu121
-torch==2.3.0+cu121
-torchvision==0.18.0+cu121
-torchaudio==2.3.0+cu121
-onnxruntime-gpu==1.18.0
+# ============================================================
+# Patient Contact Tracing System — Requirements
+# ============================================================
+# IMPORTANT: Install PyTorch FIRST (before everything else)
+# using the appropriate command for your setup:
+#
+#   CPU only:
+#     pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
+#
+#   GPU (CUDA 12.1):
+#     pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121 \
+#       --index-url https://download.pytorch.org/whl/cu121
+#
+# Then run: pip install -r requirements.txt
+#
+# DO NOT let pip auto-upgrade torch — it will break YOLO model loading.
+# Pin your torch version by running the above commands FIRST.
+# ============================================================
 
-# === MAIN LIBRARIES ===
+
+# ============================================================
+# CORE AI / VISION
+# ============================================================
+
+# InsightFace for face detection + recognition (ArcFace embeddings)
 insightface==0.7.3
-opencv-python>=4.9.0,<4.11
-numpy>=1.24,<2
-rich>=13.7
-typer>=0.9
-python-dotenv>=1.0
-ultralytics==8.1.0
+
+# ONNX runtime — use onnxruntime for CPU-only, onnxruntime-gpu for CUDA
+# CPU:
+#onnxruntime>=1.18.0,<1.20
+# GPU (comment out the line above and uncomment below if using CUDA):
+onnxruntime-gpu>=1.18.0,<1.20
+
+# OpenCV — headless is preferred in server environments (no Qt dependency)
+# Use opencv-python if you need GUI windows (e.g. cv2.imshow)
+opencv-python-headless>=4.9.0,<4.11
+
+# NumPy — keep below 2.0; insightface + many onnx models break on numpy 2.x
+numpy>=1.24.0,<2.0.0
+
+# Ultralytics YOLOv8 — 8.2+ registers safe globals for PyTorch 2.6 compatibility
+# Do NOT use 8.1.x; it fails with torch>=2.6 due to weights_only pickle issue
+ultralytics>=8.2.0,<8.4.0
+
+# DeepSORT for multi-object tracking
 deep-sort-realtime>=1.3.2
-filterpy>=1.4
-torchreid==0.2.5
-gdown>=5.2
-tensorboard>=2.20
-scikit-learn>=1.4
+
+# filterpy — required by DeepSORT's Kalman filter
+filterpy>=1.4.0
+
+# torchreid (OSNet person re-identification embedder for DeepSORT)
+# Not on PyPI as "torchreid" — install from the official KaiyangZhou repo:
+#   pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
+# OR if you already have it installed in your venv, comment this out entirely.
+# torchreid  ← do NOT include this; it will fail pip install from PyPI
+
+# Scikit-learn — used by mask classifier (LogisticRegression pipeline)
+scikit-learn>=1.4.0,<1.6.0
+
+# Joblib — mask classifier model serialisation (dump/load)
+joblib>=1.3.0
+
+# Scikit-image — image processing utilities
+scikit-image>=0.22.0
+
+# gdown — download models from Google Drive if needed
+gdown>=5.2.0
+
+
+# ============================================================
+# WEB FRAMEWORK (FastAPI backend)
+# ============================================================
+
+fastapi>=0.111.0,<0.116.0
+uvicorn[standard]>=0.30.0,<0.35.0
+python-multipart>=0.0.9
+
+# Pydantic v2 (FastAPI 0.111+ requires pydantic v2)
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.3.0,<3.0.0
+
+
+# ============================================================
+# AUTHENTICATION & SECURITY
+# ============================================================
+
+# JWT token handling
+python-jose[cryptography]>=3.3.0,<4.0.0
+
+# Password hashing — bcrypt 4.x works with passlib 1.7.4
+passlib>=1.7.4,<2.0.0
+bcrypt>=4.0.0,<5.0.0
+
+
+# ============================================================
+# DATABASE
+# ============================================================
+
+# MongoDB driver
+pymongo>=4.7.0,<5.0.0
+
+# certifi for TLS/SSL certificate verification (MongoDB Atlas)
+certifi>=2024.2.2
+
+
+# ============================================================
+# UTILITIES
+# ============================================================
+
+# Environment variable management
+python-dotenv>=1.0.0,<2.0.0
+
+# Rich terminal output (progress bars, coloured logs)
+rich>=13.7.0,<14.0.0
+
+# Typer CLI (used by some helper scripts)
+typer>=0.12.0,<0.14.0
+
+# HTTP requests
+requests>=2.31.0,<3.0.0
+
+# YAML parsing (required by ultralytics, torch, etc.)
+pyyaml>=6.0.1
+
+# Progress bars
+tqdm>=4.66.0
+
+# System utilities
+psutil>=5.9.0
+
+# Matplotlib — plotting/visualisation utilities
+matplotlib>=3.8.0,<3.10.0
+
+# Sympy — symbolic math (required by torch internals)
+sympy>=1.12.0
+
+# Jinja2 — templating (required by torch, also used in some report generation)
+jinja2>=3.1.4
+
+# File locking (torch dependency)
+filelock>=3.13.0
+
+# Protobuf — required by onnxruntime and tensorboard
+protobuf>=4.25.0,<6.0.0
+
+# Werkzeug — utilities (required by tensorboard)
+werkzeug>=3.0.0
+
+# TensorBoard — optional, for training visualisation
+tensorboard>=2.16.0
+
+# EasyDict — used by some InsightFace internals
+easydict>=1.11
+
+# PrettyTable — formatted table output in CLI scripts
+prettytable>=3.10.0
+
+# Cython — required to build some native extensions (torchreid, insightface)
+cython>=3.0.0
+
+# Albumentations — image augmentation
+# 1.3.x is incompatible with numpy>=1.25; use 1.4.x+
+albumentations>=1.4.0,<2.0.0
+
+# Thread pool control (scikit-learn dependency)
+threadpoolctl>=3.2.0
+
+# Wide-char support for rich/typer
+wcwidth>=0.2.13
+
+# Kaggle Hub — download public datasets
 kagglehub>=0.2.5
-
-# === EXTRA UTILS (auto-installed by above but pinned for stability) ===
-protobuf
-requests
-matplotlib
-scikit-image
-albumentations==1.3.1
-easydict
-prettytable
-tqdm
-cython
-sympy
-jinja2
-filelock
-psutil
-pyyaml
-absl-py
-werkzeug
-joblib
-threadpoolctl
-wcwidth
-
-# === WEB APPLICATION DEPENDENCIES ===
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-pymongo>=4.6.0
-python-multipart>=0.0.6
-pydantic>=2.5.0
-pydantic-settings>=2.1.0
